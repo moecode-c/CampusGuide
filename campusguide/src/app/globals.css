@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+:root {
+  /* Light theme (kept clean, still red-accented) */
+  --background: #ffffff;
+  --foreground: #1a0f12;
+
+  --nav: #14070a;
+  --panel: #f6f1f2;
+
+  --primary: #8b0a18;
+  --secondary: #b0122a;
+  --accent: #3a0c14;
+  --success: #0aa77b;
+  --warning: #d49a00;
+  --risk: #c1122f;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-nav: var(--nav);
+  --color-panel: var(--panel);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-risk: var(--risk);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* Dark theme (default) */
+.dark {
+  --background: #070406;
+  --foreground: #f4eef0;
+
+  --nav: #0d0507;
+  --panel: #12070b;
+
+  --primary: #b0122a;
+  --secondary: #8b0a18;
+  --accent: #4a131d;
+  --success: #0aa77b;
+  --warning: #d49a00;
+  --risk: #d10f35;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}

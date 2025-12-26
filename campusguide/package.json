@@ -1,0 +1,52 @@
+{
+  "name": "campusguide",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "seed:rooms": "tsx scripts/seed-rooms.ts",
+    "create:admin": "tsx scripts/create-admin.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.958.0",
+    "@aws-sdk/s3-request-presigner": "^3.958.0",
+    "@fullcalendar/daygrid": "^6.1.20",
+    "@fullcalendar/interaction": "^6.1.20",
+    "@fullcalendar/react": "^6.1.20",
+    "@fullcalendar/rrule": "^6.1.20",
+    "@fullcalendar/timegrid": "^6.1.20",
+    "bcrypt": "^6.0.0",
+    "clsx": "^2.1.1",
+    "lru-cache": "^11.2.4",
+    "lucide-react": "^0.562.0",
+    "mongoose": "^9.0.2",
+    "next": "16.1.1",
+    "next-auth": "^4.24.13",
+    "next-themes": "^0.4.6",
+    "papaparse": "^5.5.3",
+    "rate-limiter-flexible": "^9.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-zoom-pan-pinch": "^3.7.0",
+    "rrule": "^2.8.1",
+    "tailwind-merge": "^3.4.0",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/bcrypt": "^6.0.0",
+    "@types/node": "^20",
+    "@types/papaparse": "^5.5.2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^16.6.1",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.1",
+    "tailwindcss": "^4",
+    "tsx": "^4.21.0",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,337 @@
+"use client";
+
+import * as React from "react";
+import Image from "next/image";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { MapPin, Plus, Trash2 } from "lucide-react";
+
+type Room = {
+  _id: string;
+  roomCode: string;
+  building: string;
+  floor: number;
+  x: number;
+  y: number;
+};
+
+export default function AdminRoomsPage() {
+  const [items, setItems] = React.useState<Room[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [mapImgError, setMapImgError] = React.useState(false);
+  const mapRef = React.useRef<HTMLDivElement | null>(null);
+
+  const [roomCode, setRoomCode] = React.useState("");
+  const [building, setBuilding] = React.useState("");
+  const [floor, setFloor] = React.useState("1");
+  const [x, setX] = React.useState("0.5");
+  const [y, setY] = React.useState("0.5");
+
+  function resetForm() {
+    setEditingId(null);
+    setRoomCode("");
+    setBuilding("");
+    setFloor("1");
+    setX("0.5");
+    setY("0.5");
+  }
+
+  function clamp01(n: number) {
+    return Math.max(0, Math.min(1, n));
+  }
+
+  function onPickFromMap(e: React.MouseEvent) {
+    const el = mapRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const px = clamp01((e.clientX - r.left) / r.width);
+    const py = clamp01((e.clientY - r.top) / r.height);
+    setX(px.toFixed(3));
+    setY(py.toFixed(3));
+  }
+
+  async function load() {
+    setLoading(true);
+    const res = await fetch("/api/admin/rooms", { cache: "no-store" });
+    const j = await res.json().catch(() => null);
+    if (!res.ok) {
+      setError(j?.error ?? "Failed to load rooms");
+      setLoading(false);
+      return;
+    }
+    setItems((j?.items ?? []) as Room[]);
+    setError(null);
+    setLoading(false);
+  }
+
+  React.useEffect(() => {
+    load();
+  }, []);
+
+  async function create() {
+    setError(null);
+    const floorNum = Number(floor);
+    const xNum = Number(x);
+    const yNum = Number(y);
+    if (!Number.isFinite(floorNum) || !Number.isFinite(xNum) || !Number.isFinite(yNum)) {
+      setError("Invalid numbers (floor/x/y).");
+      return;
+    }
+    if (xNum < 0 || xNum > 1 || yNum < 0 || yNum > 1) {
+      setError("x/y must be between 0 and 1.");
+      return;
+    }
+    const res = await fetch("/api/admin/rooms", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        roomCode,
+        building,
+        floor: floorNum,
+        x: xNum,
+        y: yNum,
+      }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(j.error ?? "Create failed");
+      return;
+    }
+    resetForm();
+    await load();
+  }
+
+  async function saveEdit() {
+    if (!editingId) return;
+    setError(null);
+    const floorNum = Number(floor);
+    const xNum = Number(x);
+    const yNum = Number(y);
+    if (!Number.isFinite(floorNum) || !Number.isFinite(xNum) || !Number.isFinite(yNum)) {
+      setError("Invalid numbers (floor/x/y).");
+      return;
+    }
+    if (xNum < 0 || xNum > 1 || yNum < 0 || yNum > 1) {
+      setError("x/y must be between 0 and 1.");
+      return;
+    }
+    const payload = {
+      roomCode,
+      building,
+      floor: floorNum,
+      x: xNum,
+      y: yNum,
+    };
+
+    console.log("[Admin] sending PATCH with payload:", payload);
+
+    const res = await fetch(`/api/admin/rooms/${editingId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const j = await res.json().catch(() => ({}));
+    console.log("[Admin] Save response:", j);
+
+    if (!res.ok) {
+      setError(j.error ?? "Save failed");
+      return;
+    }
+
+    // Update local state immediately
+    if (j.item) {
+      console.log("[Admin] Updating local item:", j.item);
+      setItems((prev) => prev.map((p) => (p._id === j.item._id ? j.item : p)));
+    } else {
+      console.warn("[Admin] No item in response, reloading...");
+    }
+
+    // Always reload to ensure consistency with DB, partially redundant but safer while debugging
+    await load();
+
+    resetForm();
+  }
+
+  async function del(id: string) {
+    setError(null);
+    const res = await fetch(`/api/admin/rooms/${id}`, { method: "DELETE" });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(j.error ?? "Delete failed");
+      return;
+    }
+    await load();
+  }
+
+  return (
+    <div className="space-y-2">
+      <h1 className="text-2xl font-extrabold tracking-tight">Rooms</h1>
+      <p className="text-sm text-foreground/70">Manage image coordinate rooms for the interactive campus map.</p>
+
+      <div className="grid gap-6 pt-4 grid-cols-1 lg:grid-cols-5">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5 text-primary" />
+              {editingId ? "Edit room" : "Add room"}
+            </CardTitle>
+            <CardDescription>x/y are normalized coordinates (0..1).</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-sm font-semibold">Room code</label>
+                <Input value={roomCode} onChange={(e) => setRoomCode(e.target.value)} placeholder="C204" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-sm font-semibold">Building</label>
+                  <Input value={building} onChange={(e) => setBuilding(e.target.value)} placeholder="C" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-semibold">Floor</label>
+                  <Input value={floor} onChange={(e) => setFloor(e.target.value)} type="number" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-sm font-semibold">x</label>
+                  <Input value={x} onChange={(e) => setX(e.target.value)} type="number" step="0.001" min={0} max={1} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-semibold">y</label>
+                  <Input value={y} onChange={(e) => setY(e.target.value)} type="number" step="0.001" min={0} max={1} />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-foreground/10 bg-background p-3">
+                <p className="text-xs font-semibold text-foreground/80">Pick coordinates on the map</p>
+                <p className="mt-1 text-xs text-foreground/70">Click the map to set x/y for the current room.</p>
+                <div
+                  ref={mapRef}
+                  className="relative mt-3 aspect-square w-full overflow-hidden rounded-2xl border border-foreground/10 bg-panel"
+                  onClick={onPickFromMap}
+                  role="button"
+                  tabIndex={0}
+                >
+                  {!mapImgError ? (
+                    <Image
+                      src="/campus-map.png"
+                      alt="Campus map"
+                      fill
+                      onError={() => setMapImgError(true)}
+                      className="object-contain"
+                      sizes="(max-width: 1024px) 90vw, 420px"
+                      priority
+                    />
+                  ) : (
+                    <div className="grid h-full w-full place-items-center p-6 text-center">
+                      <p className="text-xs text-foreground/70">Missing public/campus-map.png</p>
+                    </div>
+                  )}
+
+                  <div
+                    className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+                    style={{ left: `${Number(x) * 100}%`, top: `${Number(y) * 100}%` }}
+                  >
+                    <div className="h-4 w-4 rounded-full bg-primary ring-4 ring-primary/30" />
+                  </div>
+                </div>
+              </div>
+
+              {error ? <p className="text-sm font-semibold text-risk">{error}</p> : null}
+
+              {editingId ? (
+                <div className="flex items-center gap-2">
+                  <Button type="button" onClick={saveEdit}>
+                    <MapPin className="h-4 w-4" /> Save
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={resetForm}>
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <Button type="button" onClick={create}>
+                  <MapPin className="h-4 w-4" /> Add
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle>Rooms list</CardTitle>
+            <CardDescription>Students can search by room code or building.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <p className="text-sm text-foreground/70">Loading…</p>
+            ) : items.length === 0 ? (
+              <p className="text-sm text-foreground/70">No rooms yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {items.map((r) => (
+                  <div
+                    key={r._id}
+                    className="flex w-full items-center justify-between rounded-2xl bg-background p-4 text-left transition hover:bg-background/80"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      setEditingId(r._id);
+                      setRoomCode(r.roomCode);
+                      setBuilding(r.building);
+                      setFloor(String(r.floor));
+                      setX(String(r.x));
+                      setY(String(r.y));
+                      setError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" && e.key !== " ") return;
+                      e.preventDefault();
+                      setEditingId(r._id);
+                      setRoomCode(r.roomCode);
+                      setBuilding(r.building);
+                      setFloor(String(r.floor));
+                      setX(String(r.x));
+                      setY(String(r.y));
+                      setError(null);
+                    }}
+                  >
+                    <div>
+                      <p className="text-sm font-extrabold">{r.roomCode}</p>
+                      <p className="text-xs text-foreground/70">Building {r.building} • Floor {r.floor} • ({r.x.toFixed(3)}, {r.y.toFixed(3)})</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge tone="neutral">{r.building}</Badge>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          del(r._id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-3">
+              <Button type="button" variant="ghost" onClick={load}>Reload</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
