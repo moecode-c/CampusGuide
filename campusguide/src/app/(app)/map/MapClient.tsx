@@ -59,6 +59,8 @@ export function MapClient() {
     return () => ro.disconnect();
   }, []);
 
+  const mapImageRef = React.useRef<HTMLDivElement | null>(null);
+
   const zoomToSelected = React.useCallback(
     (room: Room, scale = 3) => {
       const fn = transformRef.current?.setTransform;
@@ -66,18 +68,22 @@ export function MapClient() {
       const vw = viewportSize.w;
       const vh = viewportSize.h;
       if (!vw || !vh) return;
-      const x = vw / 2 - room.x * MAP_SIZE * scale;
-      const y = vh / 2 - room.y * MAP_SIZE * scale;
+
+      // Use actual rendered size if available, fallback to default
+      const currentMapSize = mapImageRef.current?.getBoundingClientRect().width ?? MAP_SIZE;
+
+      const x = vw / 2 - room.x * currentMapSize * scale;
+      const y = vh / 2 - room.y * currentMapSize * scale;
       fn(x, y, scale);
     },
     [MAP_SIZE, viewportSize.h, viewportSize.w]
   );
 
-  React.useEffect(() => {
-    if (!selected) return;
-    // Auto-center on selection so searching feels “exact”.
-    zoomToSelected(selected, 3);
-  }, [selected, zoomToSelected]);
+  // React.useEffect(() => {
+  //   if (!selected) return;
+  //   // Auto-center disabled per user request
+  //   // zoomToSelected(selected, 3);
+  // }, [selected, zoomToSelected]);
 
   const reload = React.useCallback(async () => {
     setLoading(true);
@@ -340,29 +346,22 @@ export function MapClient() {
                       >
                         Reset
                       </Button>
-                      {selected ? (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() => zoomToSelected(selected, 3)}
-                        >
-                          <Navigation className="h-4 w-4" />
-                          Zoom to {selected.roomCode}
-                        </Button>
-                      ) : null}
                     </div>
 
-                    <TransformComponent>
-                      <div className="relative" style={{ width: MAP_SIZE }}>
+                    <TransformComponent
+                      wrapperStyle={{ width: "100%", height: "100%" }}
+                      contentStyle={{ width: "100%" }}
+                    >
+                      <div ref={mapImageRef} className="relative w-full aspect-square bg-muted/20">
                         {!mapImgError ? (
                           <Image
                             src="/campus-map.png"
                             alt="Campus map"
-                            width={MAP_SIZE}
-                            height={MAP_SIZE}
+                            fill
                             priority
                             onError={() => setMapImgError(true)}
-                            className="h-auto w-full select-none"
+                            className="object-contain select-none"
+                            sizes="(max-width: 768px) 100vw, 600px"
                           />
                         ) : (
                           <div className="grid aspect-square w-full place-items-center bg-panel p-8 text-center">

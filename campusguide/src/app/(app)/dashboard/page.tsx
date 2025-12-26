@@ -113,7 +113,7 @@ export default async function DashboardPage() {
       <h1 className="text-2xl font-extrabold tracking-tight">Dashboard</h1>
       <p className="text-sm text-foreground/70">Your midterm GPA, attendance, schedule, and latest resources.</p>
 
-      <div className="grid gap-6 pt-4 lg:grid-cols-3">
+      <div className="grid gap-6 pt-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -216,7 +216,7 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid gap-6 pt-2 lg:grid-cols-2">
+      <div className="grid gap-6 pt-2 grid-cols-1 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

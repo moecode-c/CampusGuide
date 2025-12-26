@@ -20,6 +20,13 @@ export const metadata: Metadata = {
   description: "Student platform: GPA, attendance, schedule, resources, and campus map.",
 };
 
+export const viewport: Metadata["viewport"] = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{

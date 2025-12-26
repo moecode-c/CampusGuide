@@ -96,7 +96,7 @@ export function GpaCalculatorClient() {
   const overallGpa = totalCredits <= 0 ? 0 : Math.round((weighted / totalCredits) * 100) / 100;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-5">
+    <div className="grid gap-6 grid-cols-1 lg:grid-cols-5">
       <Card className="lg:col-span-3">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -108,8 +108,8 @@ export function GpaCalculatorClient() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-foreground/70">
+          <div className="space-y-4">
+            <div className="hidden sm:grid grid-cols-12 gap-2 text-xs font-semibold text-foreground/70">
               <div className="col-span-6">Subject</div>
               <div className="col-span-3">Grade / Mark</div>
               <div className="col-span-1">CH</div>
@@ -117,8 +117,9 @@ export function GpaCalculatorClient() {
             </div>
 
             {rows.map((row, idx) => (
-              <div key={idx} className="grid grid-cols-12 gap-2">
-                <div className="col-span-6">
+              <div key={idx} className="flex flex-col gap-2 rounded-xl border border-foreground/5 bg-panel/50 p-3 sm:grid sm:grid-cols-12 sm:border-none sm:bg-transparent sm:p-0">
+                <div className="sm:col-span-6">
+                  <label className="mb-1 block text-xs font-semibold sm:hidden">Subject</label>
                   <Input
                     value={row.subject}
                     onChange={(e) =>
@@ -127,30 +128,34 @@ export function GpaCalculatorClient() {
                     placeholder="e.g. Calculus"
                   />
                 </div>
-                <div className="col-span-3">
-                  <Input
-                    value={row.gradeOrMark}
-                    onChange={(e) =>
-                      setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, gradeOrMark: e.target.value } : r)))
-                    }
-                    placeholder="A- or 85"
-                  />
+                <div className="flex gap-2 sm:col-span-4 sm:contents">
+                  <div className="flex-1 sm:col-span-3">
+                    <label className="mb-1 block text-xs font-semibold sm:hidden">Grade / Mark</label>
+                    <Input
+                      value={row.gradeOrMark}
+                      onChange={(e) =>
+                        setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, gradeOrMark: e.target.value } : r)))
+                      }
+                      placeholder="A- or 85"
+                    />
+                  </div>
+                  <div className="w-20 sm:col-span-1 sm:w-auto">
+                    <label className="mb-1 block text-xs font-semibold sm:hidden">CH</label>
+                    <Input
+                      value={row.creditHours}
+                      onChange={(e) =>
+                        setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, creditHours: e.target.value } : r)))
+                      }
+                      placeholder="3"
+                      inputMode="numeric"
+                    />
+                  </div>
                 </div>
-                <div className="col-span-1">
-                  <Input
-                    value={row.creditHours}
-                    onChange={(e) =>
-                      setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, creditHours: e.target.value } : r)))
-                    }
-                    placeholder="3"
-                    inputMode="numeric"
-                  />
-                </div>
-                <div className="col-span-2 flex justify-end">
+                <div className="flex justify-end sm:col-span-2">
                   <Button
                     type="button"
                     variant="ghost"
-                    className="h-11 w-11 rounded-xl p-0"
+                    className="h-11 w-11 rounded-xl p-0 hover:bg-risk/10 hover:text-risk"
                     disabled={rows.length === 1}
                     onClick={() => setRows((prev) => prev.filter((_, i) => i !== idx))}
                     aria-label="Remove row"

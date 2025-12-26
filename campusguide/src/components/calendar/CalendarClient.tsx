@@ -226,7 +226,7 @@ export function CalendarClient() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-5">
+    <div className="grid gap-6 grid-cols-1 lg:grid-cols-5">
       <Card className="lg:col-span-3">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -242,7 +242,7 @@ export function CalendarClient() {
               <FullCalendar
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, rrulePlugin]}
                 initialView="timeGridWeek"
-                headerToolbar={{ left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek" }}
+                headerToolbar={{ left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,timeGridDay" }}
                 selectable
                 select={onSelect}
                 editable

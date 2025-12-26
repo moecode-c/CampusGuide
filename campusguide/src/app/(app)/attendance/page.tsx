@@ -70,7 +70,7 @@ export default function AttendancePage() {
       ) : error ? (
         <p className="pt-4 text-sm font-semibold text-risk">{error}</p>
       ) : data ? (
-        <div className="grid gap-6 pt-4 lg:grid-cols-5">
+        <div className="grid gap-6 pt-4 grid-cols-1 lg:grid-cols-5">
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -146,9 +146,9 @@ export default function AttendancePage() {
                             setData((prev) =>
                               prev
                                 ? {
-                                    ...prev,
-                                    series: prev.series.map((x) => (x.key === s.key ? { ...x, missed: Number(e.target.value) } : x)),
-                                  }
+                                  ...prev,
+                                  series: prev.series.map((x) => (x.key === s.key ? { ...x, missed: Number(e.target.value) } : x)),
+                                }
                                 : prev
                             )
                           }
