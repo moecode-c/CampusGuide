@@ -237,10 +237,10 @@ export function MapClient() {
                     {results.map((r) => (
                       <button
                         key={r.roomCode}
-                        className="flex w-full items-center justify-between rounded-2xl bg-panel px-4 py-3 text-left transition hover:bg-panel/80"
+                        className="flex w-full items-center justify-between gap-2 rounded-2xl bg-panel px-4 py-3 text-left transition hover:bg-panel/80"
                         onClick={() => setSelected(r)}
                       >
-                        <span className="font-extrabold">{r.roomCode}</span>
+                        <span className="font-extrabold flex-shrink-0">{r.roomCode}</span>
                         <span className="text-xs text-foreground/70">{r.building} • Floor {r.floor}</span>
                       </button>
                     ))}
@@ -315,9 +315,9 @@ export function MapClient() {
             >
               <TransformWrapper
                 ref={transformRef}
-                initialScale={selected ? 2 : 1}
-                minScale={1}
-                maxScale={6}
+                initialScale={1}
+                minScale={0.5}
+                maxScale={8}
                 centerOnInit
                 wheel={{ step: 0.15 }}
                 doubleClick={{ disabled: true }}
