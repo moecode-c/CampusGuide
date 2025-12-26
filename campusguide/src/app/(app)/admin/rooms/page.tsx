@@ -174,7 +174,7 @@ export default function AdminRoomsPage() {
       <h1 className="text-2xl font-extrabold tracking-tight">Rooms</h1>
       <p className="text-sm text-foreground/70">Manage image coordinate rooms for the interactive campus map.</p>
 
-      <div className="grid gap-6 pt-4 grid-cols-1 lg:grid-cols-5">
+      <div className="grid gap-6 pt-4 lg:grid-cols-5">
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
