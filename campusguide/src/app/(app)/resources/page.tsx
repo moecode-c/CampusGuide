@@ -136,17 +136,11 @@ export default function ResourcesPage() {
                         href={it.externalUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-secondary/90"
+                        className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-secondary/90 transition"
                       >
                         <ExternalLink className="h-4 w-4" />
                         Open
                       </a>
-                    ) : null}
-                    {it.hasFile ? (
-                      <Button type="button" variant="secondary" onClick={() => download(it.id)}>
-                        <FileDown className="h-4 w-4" />
-                        Download
-                      </Button>
                     ) : null}
                   </div>
                 </div>

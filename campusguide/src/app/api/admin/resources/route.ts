@@ -11,10 +11,8 @@ const schema = z
     subject: z.string().min(1).max(80).trim(),
     academicYear: z.number().int().min(1).max(4),
     type: z.enum([ResourceTypes.Video, ResourceTypes.Pdf, ResourceTypes.Summary]),
-    externalUrl: z.string().url().optional(),
-    objectKey: z.string().max(300).optional(),
-    mimeType: z.string().max(120).optional(),
-    sizeBytes: z.number().int().min(0).max(50 * 1024 * 1024).optional(),
+    // Relax URL validation to allow "google.com" or just require https
+    externalUrl: z.string().min(3),
   })
   .strict();
 
@@ -59,22 +57,6 @@ export async function POST(req: Request) {
     });
   }
 
-  if (parsed.data.type === ResourceTypes.Video) {
-    if (!parsed.data.externalUrl) {
-      return new Response(JSON.stringify({ error: "Video resources require externalUrl" }), {
-        status: 400,
-        headers: { "content-type": "application/json" },
-      });
-    }
-  } else {
-    if (!parsed.data.objectKey) {
-      return new Response(JSON.stringify({ error: "File resources require objectKey" }), {
-        status: 400,
-        headers: { "content-type": "application/json" },
-      });
-    }
-  }
-
   await connectToDatabase();
   const created = await Resource.create({
     title: parsed.data.title,
@@ -82,9 +64,6 @@ export async function POST(req: Request) {
     academicYear: parsed.data.academicYear,
     type: parsed.data.type,
     externalUrl: parsed.data.externalUrl,
-    objectKey: parsed.data.objectKey,
-    mimeType: parsed.data.mimeType,
-    sizeBytes: parsed.data.sizeBytes,
     createdBy: session.user.id,
   });
 

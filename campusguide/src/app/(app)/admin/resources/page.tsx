@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileUp, Link2, Plus, RefreshCw } from "lucide-react";
+import { FileUp, Link2, Plus, RefreshCw, Pen, Trash2 } from "lucide-react";
 
 type Resource = {
   _id: string;
@@ -30,6 +30,7 @@ export default function AdminResourcesPage() {
   const [type, setType] = React.useState<Resource["type"]>("pdf");
   const [externalUrl, setExternalUrl] = React.useState("");
   const [file, setFile] = React.useState<File | null>(null);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
 
   async function load() {
@@ -50,97 +51,94 @@ export default function AdminResourcesPage() {
     load();
   }, []);
 
-  async function createVideo() {
+  async function deleteResource(id: string) {
+    if (!confirm("Are you sure you want to delete this resource?")) return;
     setBusy(true);
-    setError(null);
-    const res = await fetch("/api/admin/resources", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        title,
-        subject,
-        academicYear: Number(academicYear),
-        type: "video",
-        externalUrl,
-      }),
-    });
-    const j = await res.json().catch(() => ({}));
+    const res = await fetch(`/api/admin/resources/${id}`, { method: "DELETE" });
     setBusy(false);
-    if (!res.ok) {
-      setError(j.error ?? "Create failed");
-      return;
+    if (res.ok) {
+      await load();
+    } else {
+      alert("Failed to delete");
     }
-    setTitle("");
-    setExternalUrl("");
-    await load();
   }
 
-  async function uploadFileAndCreate() {
-    if (!file) return;
+  function startEdit(item: Resource) {
+    setEditingId(item._id);
+    setTitle(item.title);
+    setSubject(item.subject);
+    setAcademicYear(String(item.academicYear));
+    setType(item.type);
+    setExternalUrl(item.externalUrl ?? "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setTitle("");
+    setSubject("");
+    setAcademicYear("1");
+    setType("pdf");
+    setExternalUrl("");
+  }
+
+  async function saveResource() {
     setBusy(true);
     setError(null);
 
-    const presign = await fetch("/api/admin/resources/presign", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ mimeType: file.type || "application/octet-stream", sizeBytes: file.size }),
-    });
-    const p = await presign.json().catch(() => ({}));
-    if (!presign.ok) {
-      setBusy(false);
-      setError(p.error ?? "Presign failed");
-      return;
+    const payload = {
+      title,
+      subject,
+      academicYear: Number(academicYear),
+      type,
+      externalUrl,
+    };
+
+    let res;
+    if (editingId) {
+      res = await fetch(`/api/admin/resources/${editingId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      res = await fetch("/api/admin/resources", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
     }
 
-    const put = await fetch(p.url, {
-      method: "PUT",
-      headers: { "content-type": file.type || "application/octet-stream" },
-      body: file,
-    });
-    if (!put.ok) {
-      setBusy(false);
-      setError("Upload to storage failed");
-      return;
-    }
-
-    const res = await fetch("/api/admin/resources", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        title,
-        subject,
-        academicYear: Number(academicYear),
-        type,
-        objectKey: p.objectKey,
-        mimeType: file.type || "application/octet-stream",
-        sizeBytes: file.size,
-      }),
-    });
     const j = await res.json().catch(() => ({}));
     setBusy(false);
+
     if (!res.ok) {
-      setError(j.error ?? "Create failed");
+      setError(j.error ?? "Save failed");
       return;
+    }
+
+    if (editingId) {
+      setEditingId(null);
     }
 
     setTitle("");
-    setFile(null);
+    setExternalUrl("");
     await load();
   }
 
   return (
     <div className="space-y-2">
       <h1 className="text-2xl font-extrabold tracking-tight">Resources (Admin)</h1>
-      <p className="text-sm text-foreground/70">Upload PDFs/summaries to Cloudflare R2 or add external video links.</p>
+      <p className="text-sm text-foreground/70">Add links to external study materials (PDFs, videos, summaries).</p>
 
       <div className="grid gap-6 pt-4 lg:grid-cols-5">
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Plus className="h-5 w-5 text-primary" />
-              Add resource
+              {editingId ? <RefreshCw className="h-5 w-5 text-primary" /> : <Plus className="h-5 w-5 text-primary" />}
+              {editingId ? "Edit resource" : "Add resource"}
             </CardTitle>
-            <CardDescription>Admin upload only. Students can only view/download.</CardDescription>
+            <CardDescription>Admin upload only. Students can only view.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -165,42 +163,30 @@ export default function AdminResourcesPage() {
                 <div className="space-y-1">
                   <label className="text-sm font-semibold">Type</label>
                   <Select value={type} onChange={(e) => setType(e.target.value as any)}>
-                    <option value="pdf">Past exam PDF</option>
-                    <option value="summary">Summary</option>
-                    <option value="video">Video (external link)</option>
+                    <option value="pdf">Past exam (PDF Link)</option>
+                    <option value="summary">Summary (Link)</option>
+                    <option value="video">Video (YouTube/Link)</option>
                   </Select>
                 </div>
               </div>
 
-              {type === "video" ? (
-                <div className="space-y-1">
-                  <label className="text-sm font-semibold">Video URL</label>
-                  <Input value={externalUrl} onChange={(e) => setExternalUrl(e.target.value)} placeholder="https://…" />
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  <label className="text-sm font-semibold">File</label>
-                  <input
-                    type="file"
-                    className="block w-full text-sm"
-                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                    accept={type === "pdf" ? "application/pdf" : undefined}
-                  />
-                  <p className="text-xs text-foreground/70">Stored in R2 via signed upload URL.</p>
-                </div>
-              )}
+              <div className="space-y-1">
+                <label className="text-sm font-semibold">External URL</label>
+                <Input value={externalUrl} onChange={(e) => setExternalUrl(e.target.value)} placeholder="https://drive.google.com/..." />
+              </div>
 
               {error ? <p className="text-sm font-semibold text-risk">{error}</p> : null}
 
-              {type === "video" ? (
-                <Button type="button" variant="secondary" onClick={createVideo} disabled={busy}>
-                  <Link2 className="h-4 w-4" /> {busy ? "Saving…" : "Add video"}
+              <div className="flex gap-2">
+                <Button type="button" variant="secondary" onClick={saveResource} disabled={busy || !title || !externalUrl} className="flex-1">
+                  <Link2 className="h-4 w-4" /> {busy ? "Saving…" : editingId ? "Update Link" : "Publish Link"}
                 </Button>
-              ) : (
-                <Button type="button" variant="secondary" onClick={uploadFileAndCreate} disabled={busy || !file}>
-                  <FileUp className="h-4 w-4" /> {busy ? "Uploading…" : "Upload & publish"}
-                </Button>
-              )}
+                {editingId && (
+                  <Button type="button" variant="ghost" onClick={cancelEdit} disabled={busy}>
+                    Cancel
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -225,16 +211,33 @@ export default function AdminResourcesPage() {
               <div className="space-y-2">
                 {items.map((it) => (
                   <div key={it._id} className="flex items-center justify-between rounded-2xl bg-background p-4">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1 mr-4">
                       <p className="truncate text-sm font-extrabold">{it.title}</p>
                       <p className="text-xs text-foreground/70">
-                        {it.subject} • Year {it.academicYear}
+                        {it.subject} • Year {it.academicYear} • <span className="font-semibold text-primary">{it.type}</span>
                       </p>
-                      <p className="truncate text-[11px] text-foreground/60">
-                        {it.externalUrl ? it.externalUrl : it.objectKey}
-                      </p>
+                      <a href={it.externalUrl} target="_blank" rel="noreferrer" className="truncate text-[11px] text-foreground/50 hover:underline block mt-0.5">
+                        {it.externalUrl}
+                      </a>
                     </div>
-                    <Badge tone="neutral">{it.type}</Badge>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
+                        onClick={() => startEdit(it)}
+                      >
+                        <Pen className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 hover:text-risk"
+                        onClick={() => deleteResource(it._id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>

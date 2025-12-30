@@ -14,12 +14,8 @@ const resourceSchema = new Schema(
     subject: { type: String, required: true, index: true },
     academicYear: { type: Number, min: 1, max: 4, required: true, index: true },
     type: { type: String, enum: Object.values(ResourceTypes), required: true },
-    // For videos this is an external URL
-    externalUrl: { type: String },
-    // For files stored in R2
-    objectKey: { type: String, index: true },
-    mimeType: { type: String },
-    sizeBytes: { type: Number },
+    // Only links allowed now (files removed)
+    externalUrl: { type: String, required: true },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
   { timestamps: true }
