@@ -50,7 +50,7 @@ export function AboutHero() {
       onPointerLeave={onLeave}
       className="relative overflow-hidden rounded-3xl border border-foreground/10 bg-panel/20"
     >
-      <div className="pointer-events-none absolute inset-0 opacity-70">
+      <div className="pointer-events-none absolute inset-0 opacity-45 md:opacity-70">
         <Antigravity
           eventSource={eventSource}
           pointer={pointer}
@@ -65,21 +65,21 @@ export function AboutHero() {
           color="#FF9FFC"
         />
       </div>
-      <div className="absolute inset-0 bg-background/20" />
+      <div className="absolute inset-0 bg-background/35 md:bg-background/20" />
 
-      <div className="relative grid min-h-65 grid-cols-1 gap-8 p-8 md:min-h-80 md:grid-cols-[1fr_auto] md:items-center md:p-10">
+      <div className="relative grid min-h-56 grid-cols-1 gap-5 p-5 md:min-h-80 md:grid-cols-[1fr_auto] md:items-center md:gap-8 md:p-10 lg:min-h-96 lg:p-12">
         <div className="space-y-2">
-          <div className="text-base font-semibold text-foreground/70">About me</div>
-          <h2 className="text-3xl font-extrabold tracking-tight md:text-4xl">Mohammed Essam El Din</h2>
-          <p className="text-base text-foreground/70">
+          <div className="text-sm font-semibold text-foreground/70 md:text-base">About me</div>
+          <h2 className="text-2xl font-extrabold tracking-tight md:text-4xl lg:text-5xl">Mohammed Essam El Din</h2>
+          <p className="text-sm text-foreground/70 md:text-base">
             Software Developer • (Placeholder bio — you’ll provide the final text later)
           </p>
-          <div className="text-sm font-semibold text-foreground/60">
+          <div className="text-xs font-semibold text-foreground/60 md:text-sm">
             Placeholder tags: Next.js • Full-stack • UI/UX • Databases
           </div>
         </div>
 
-        <div className="h-36 w-36 overflow-hidden rounded-3xl border border-foreground/10 bg-background md:h-44 md:w-44">
+        <div className="h-24 w-24 justify-self-start overflow-hidden rounded-3xl border border-foreground/10 bg-background md:h-44 md:w-44 md:justify-self-end lg:h-52 lg:w-52">
           <Image src="/avatar-placeholder.svg" alt="Profile photo" width={256} height={256} className="h-full w-full object-cover" priority />
         </div>
       </div>

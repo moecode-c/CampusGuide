@@ -211,9 +211,9 @@ export function MapClient() {
               <p className="text-sm font-semibold text-risk">{error}</p>
             ) : (
               <div className="space-y-3">
-                <div className="flex gap-2">
-                  <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search: C204 or building C" />
-                  <Button type="button" variant="secondary" onClick={() => setQuery("")}>Clear</Button>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input className="sm:flex-1" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search: C204 or building C" />
+                  <Button className="w-full sm:w-auto" type="button" variant="secondary" onClick={() => setQuery("")}>Clear</Button>
                 </div>
 
                 {selected ? (
@@ -240,8 +240,8 @@ export function MapClient() {
                         className="flex w-full items-center justify-between gap-2 rounded-2xl bg-panel px-4 py-3 text-left transition hover:bg-panel/80"
                         onClick={() => setSelected(r)}
                       >
-                        <span className="font-extrabold shrink-0">{r.roomCode}</span>
-                        <span className="text-xs text-foreground/70">{r.building} • Floor {r.floor}</span>
+                        <span className="shrink-0 font-extrabold">{r.roomCode}</span>
+                        <span className="min-w-0 truncate text-xs text-foreground/70">{r.building} • Floor {r.floor}</span>
                       </button>
                     ))}
                   </div>

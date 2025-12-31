@@ -5,8 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { FileUp, Link2, Plus, RefreshCw, Pen, Trash2 } from "lucide-react";
+import { Link2, Plus, RefreshCw, Pen, Trash2 } from "lucide-react";
 
 type Resource = {
   _id: string;
@@ -29,7 +28,6 @@ export default function AdminResourcesPage() {
   const [academicYear, setAcademicYear] = React.useState("1");
   const [type, setType] = React.useState<Resource["type"]>("pdf");
   const [externalUrl, setExternalUrl] = React.useState("");
-  const [file, setFile] = React.useState<File | null>(null);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
 
@@ -177,12 +175,12 @@ export default function AdminResourcesPage() {
 
               {error ? <p className="text-sm font-semibold text-risk">{error}</p> : null}
 
-              <div className="flex gap-2">
-                <Button type="button" variant="secondary" onClick={saveResource} disabled={busy || !title || !externalUrl} className="flex-1">
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button type="button" variant="secondary" onClick={saveResource} disabled={busy || !title || !externalUrl} className="w-full sm:flex-1">
                   <Link2 className="h-4 w-4" /> {busy ? "Saving…" : editingId ? "Update Link" : "Publish Link"}
                 </Button>
                 {editingId && (
-                  <Button type="button" variant="ghost" onClick={cancelEdit} disabled={busy}>
+                  <Button type="button" variant="ghost" onClick={cancelEdit} disabled={busy} className="w-full sm:w-auto">
                     Cancel
                   </Button>
                 )}

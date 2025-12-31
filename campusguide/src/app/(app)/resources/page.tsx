@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, FileDown, Library, Search } from "lucide-react";
+import { ExternalLink, Library, Search } from "lucide-react";
 
 type Item = {
   id: string;
@@ -69,9 +69,9 @@ export default function ResourcesPage() {
           <div className="grid gap-3 md:grid-cols-4">
             <div className="md:col-span-2">
               <label className="text-sm font-semibold">Search</label>
-              <div className="mt-1 flex gap-2">
-                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Title or subject…" />
-                <Button type="button" variant="secondary" onClick={load}>
+              <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+                <Input className="sm:flex-1" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Title or subject…" />
+                <Button className="w-full sm:w-auto" type="button" variant="secondary" onClick={load}>
                   <Search className="h-4 w-4" />
                   Search
                 </Button>

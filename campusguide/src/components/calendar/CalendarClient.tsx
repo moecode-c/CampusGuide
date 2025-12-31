@@ -35,6 +35,16 @@ export function CalendarClient() {
   const [selected, setSelected] = React.useState<ApiEvent | null>(null);
   const [isBusy, setIsBusy] = React.useState(false);
 
+  const [initialView, setInitialView] = React.useState<"timeGridWeek" | "timeGridDay">("timeGridWeek");
+
+  React.useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    const apply = () => setInitialView(mq.matches ? "timeGridDay" : "timeGridWeek");
+    apply();
+    mq.addEventListener?.("change", apply);
+    return () => mq.removeEventListener?.("change", apply);
+  }, []);
+
   const eventClassNames = React.useCallback((arg: any) => {
     const t = arg.event?.extendedProps?.type as ApiEvent["extendedProps"]["type"] | undefined;
     return t ? [`cg-event--${t}`] : [];
@@ -204,7 +214,7 @@ export function CalendarClient() {
               <p>Loading schedule...</p>
             </div>
           ) : (
-        <div className="p-4 bg-nav text-xs min-h-162.5 h-[75dvh]">
+        <div className="h-[70dvh] overflow-x-auto bg-nav p-4 text-xs sm:h-[75dvh]">
               <style jsx global>{`
                     .fc {
               --fc-border-color: color-mix(in srgb, var(--foreground) 16%, transparent);
@@ -302,7 +312,8 @@ export function CalendarClient() {
                 `}</style>
               <FullCalendar
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, rrulePlugin]}
-                initialView="timeGridWeek"
+                key={initialView}
+                initialView={initialView}
                 headerToolbar={{ left: "prev,next today", center: "title", right: "timeGridWeek,timeGridDay" }}
                 selectable={false}
                 editable={true}
@@ -326,7 +337,7 @@ export function CalendarClient() {
 
       {/* Full Event Edit Modal */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-105 bg-panel text-foreground border border-foreground/10 shadow-xl shadow-primary/10">
+        <DialogContent className="bg-panel text-foreground border border-foreground/10 shadow-xl shadow-primary/10 sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-foreground">Edit Class</DialogTitle>
             <DialogDescription className="text-foreground/70">Update class details below.</DialogDescription>

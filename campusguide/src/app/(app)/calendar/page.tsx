@@ -30,13 +30,13 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight">Calendar</h1>
           <p className="text-sm text-foreground/70">Manage your weekly schedule.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="danger" disabled={clearing} onClick={clearLectures}>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <Button className="w-full sm:w-auto" variant="danger" disabled={clearing} onClick={clearLectures}>
             {clearing ? "Clearing…" : "Clear Lectures"}
           </Button>
           <ScheduleManager onUpdate={() => setKey(k => k + 1)} />

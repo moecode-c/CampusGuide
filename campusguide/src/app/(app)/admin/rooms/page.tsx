@@ -304,9 +304,9 @@ export default function AdminRoomsPage() {
                       setError(null);
                     }}
                   >
-                    <div>
-                      <p className="text-sm font-extrabold">{r.roomCode}</p>
-                      <p className="text-xs text-foreground/70">Building {r.building} • Floor {r.floor} • ({r.x.toFixed(3)}, {r.y.toFixed(3)})</p>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-extrabold">{r.roomCode}</p>
+                      <p className="truncate text-xs text-foreground/70">Building {r.building} • Floor {r.floor} • ({r.x.toFixed(3)}, {r.y.toFixed(3)})</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge tone="neutral">{r.building}</Badge>

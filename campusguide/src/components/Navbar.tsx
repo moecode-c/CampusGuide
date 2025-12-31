@@ -72,14 +72,14 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-foreground/10 bg-nav">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex min-w-0 items-center gap-2">
           <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary text-white shadow-sm">
             <GraduationCap className="h-5 w-5" />
           </span>
-          <span className="text-base font-extrabold tracking-tight text-foreground">CampusGuide</span>
+          <span className="min-w-0 truncate text-base font-extrabold tracking-tight text-foreground">CampusGuide</span>
         </Link>
 
-        <div className="flex items-center gap-2 md:hidden">
+        <div className="flex items-center gap-2 lg:hidden">
           <Button
             type="button"
             variant="secondary"
@@ -91,7 +91,7 @@ export function Navbar() {
           </Button>
         </div>
 
-        <nav className="hidden items-center gap-2 md:flex">
+        <nav className="hidden items-center gap-2 lg:flex">
           {authed ? (
             <>
               <NavLink href="/dashboard" icon={<LayoutDashboard className="h-4 w-4" />} label="Dashboard" />
@@ -147,7 +147,7 @@ export function Navbar() {
           )}
         </nav>
 
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="hidden items-center gap-2 lg:flex">
           {!authed ? (
             <>
               <Link href="/login" className="hidden sm:block">
@@ -171,7 +171,7 @@ export function Navbar() {
       </div>
 
       {mobileOpen ? (
-        <div className="md:hidden">
+        <div className="lg:hidden">
           <button
             type="button"
             className="fixed inset-0 z-50 bg-background/70 backdrop-blur-sm"
