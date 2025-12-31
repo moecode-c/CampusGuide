@@ -20,7 +20,7 @@ export function MidtermClient({ mode }: { mode: "estimator" }) {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const res = await fetch("/api/student/midterms", { cache: "no-store" });
+      const res = await fetch("/api/student/midterms");
       const json = await res.json().catch(() => null);
       if (cancelled) return;
       if (!res.ok) {

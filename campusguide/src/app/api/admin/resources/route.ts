@@ -4,6 +4,7 @@ import { Resource, ResourceTypes } from "@/server/models/Resource";
 import { enforceRateLimit } from "@/server/security/rateLimit";
 import { requireRole } from "@/server/security/requireRole";
 import { invalidateResourcesCache } from "@/server/data/resources";
+import { jsonWithEtag, noStoreJson } from "@/server/httpCache";
 
 const schema = z
   .object({
@@ -30,10 +31,7 @@ export async function GET(req: Request) {
 
   await connectToDatabase();
   const items = await Resource.find({}).sort({ createdAt: -1 }).lean();
-  return new Response(JSON.stringify({ items }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return jsonWithEtag(req, { items }, { cacheControl: "private, max-age=0, must-revalidate" });
 }
 
 export async function POST(req: Request) {
@@ -69,8 +67,5 @@ export async function POST(req: Request) {
 
   invalidateResourcesCache();
 
-  return new Response(JSON.stringify({ id: String(created._id) }), {
-    status: 201,
-    headers: { "content-type": "application/json" },
-  });
+  return noStoreJson({ id: String(created._id) }, 201);
 }

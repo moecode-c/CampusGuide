@@ -65,7 +65,7 @@ export function CalendarClient() {
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/student/events", { cache: "no-store" });
+    const res = await fetch("/api/student/events");
     const j = await res.json().catch(() => null);
     if (res.ok) {
       const raw = (j?.events ?? []) as any[];
@@ -204,7 +204,7 @@ export function CalendarClient() {
               <p>Loading schedule...</p>
             </div>
           ) : (
-        <div className="p-4 bg-nav text-xs min-h-[650px] h-[75dvh]">
+        <div className="p-4 bg-nav text-xs min-h-162.5 h-[75dvh]">
               <style jsx global>{`
                     .fc {
               --fc-border-color: color-mix(in srgb, var(--foreground) 16%, transparent);
@@ -326,7 +326,7 @@ export function CalendarClient() {
 
       {/* Full Event Edit Modal */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-[420px] bg-panel text-foreground border border-foreground/10 shadow-xl shadow-primary/10">
+        <DialogContent className="sm:max-w-105 bg-panel text-foreground border border-foreground/10 shadow-xl shadow-primary/10">
           <DialogHeader>
             <DialogTitle className="text-foreground">Edit Class</DialogTitle>
             <DialogDescription className="text-foreground/70">Update class details below.</DialogDescription>

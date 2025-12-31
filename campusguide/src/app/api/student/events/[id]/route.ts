@@ -5,6 +5,7 @@ import { connectToDatabase } from "@/server/db";
 import { requireSession } from "@/server/security/requireSession";
 import { enforceRateLimit } from "@/server/security/rateLimit";
 import { Event, EventTypes } from "@/server/models/Event";
+import { noStoreJson } from "@/server/httpCache";
 
 const isoDate = z.string().datetime();
 const hhmmTime = z.string().regex(/^\d{2}:\d{2}$/).optional();
@@ -125,10 +126,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   Object.assign(found, update);
   await found.save();
 
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return noStoreJson({ ok: true }, 200);
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -160,8 +158,5 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     });
   }
 
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return noStoreJson({ ok: true }, 200);
 }

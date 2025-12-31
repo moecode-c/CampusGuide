@@ -6,6 +6,7 @@ import { Room } from "@/server/models/Room";
 import { enforceRateLimit } from "@/server/security/rateLimit";
 import { requireRole } from "@/server/security/requireRole";
 import { invalidateRoomsCache } from "@/server/data/rooms";
+import { noStoreJson } from "@/server/httpCache";
 
 const patchSchema = z
   .object({
@@ -79,10 +80,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   console.log(`[PATCH] Updated room:`, updated);
   invalidateRoomsCache();
 
-  return new Response(JSON.stringify({ ok: true, item: updated }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return noStoreJson({ ok: true, item: updated }, 200);
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -115,8 +113,5 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   }
   invalidateRoomsCache();
 
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return noStoreJson({ ok: true }, 200);
 }

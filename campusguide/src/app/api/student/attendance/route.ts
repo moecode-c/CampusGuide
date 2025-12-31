@@ -6,6 +6,7 @@ import { Event, EventTypes } from "@/server/models/Event";
 import { Attendance } from "@/server/models/Attendance";
 import { getSemesterTemplateForYear } from "@/server/data/semesterTemplates";
 import { RRule } from "rrule";
+import { jsonWithEtag, noStoreJson } from "@/server/httpCache";
 
 function inExcluded(date: Date, ranges: Array<{ start: Date; end: Date }>) {
   return ranges.some((r) => date >= r.start && date <= r.end);
@@ -86,8 +87,9 @@ export async function GET(req: Request) {
 
   const status = missedSessions > allowedAbsences ? "risk" : missedSessions > Math.floor(allowedAbsences * 0.6) ? "warning" : "safe";
 
-  return new Response(
-    JSON.stringify({
+  return jsonWithEtag(
+    req,
+    {
       summary: {
         totalSessions,
         missedSessions,
@@ -97,8 +99,8 @@ export async function GET(req: Request) {
         maxAbsencePercent: tpl.maxAbsencePercent ?? 25,
       },
       series: series.sort((a, b) => a.type.localeCompare(b.type) || a.title.localeCompare(b.title)),
-    }),
-    { status: 200, headers: { "content-type": "application/json" } }
+    },
+    { cacheControl: "private, max-age=0, must-revalidate" }
   );
 }
 
@@ -130,8 +132,5 @@ export async function PATCH(req: Request) {
     { upsert: true }
   );
 
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return noStoreJson({ ok: true }, 200);
 }

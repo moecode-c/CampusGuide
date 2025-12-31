@@ -36,7 +36,7 @@ export default function ResourcesPage() {
     if (academicYear) params.set("academicYear", academicYear);
     if (type) params.set("type", type);
 
-    const res = await fetch(`/api/student/resources?${params.toString()}`, { cache: "no-store" });
+    const res = await fetch(`/api/student/resources?${params.toString()}`);
     const j = await res.json().catch(() => null);
     if (!res.ok) {
       setError(j?.error ?? "Failed to load resources");
@@ -52,16 +52,6 @@ export default function ResourcesPage() {
     load();
   }, []);
 
-  async function download(id: string) {
-    const res = await fetch(`/api/student/resources/${id}/download`, { cache: "no-store" });
-    const j = await res.json().catch(() => null);
-    if (!res.ok) {
-      setError(j?.error ?? "Download failed");
-      return;
-    }
-    window.open(j.url, "_blank", "noopener,noreferrer");
-  }
-
   return (
     <div className="space-y-2">
       <h1 className="text-2xl font-extrabold tracking-tight">Resources</h1>
@@ -73,7 +63,7 @@ export default function ResourcesPage() {
             <Library className="h-5 w-5 text-primary" />
             Resource Hub
           </CardTitle>
-          <CardDescription>Search and filter. Files are served securely via signed URLs.</CardDescription>
+          <CardDescription>Search and filter resources.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 md:grid-cols-4">

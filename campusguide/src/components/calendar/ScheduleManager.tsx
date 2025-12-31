@@ -71,7 +71,7 @@ export function ScheduleManager({ onUpdate }: { onUpdate: () => void }) {
                     Add Class
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[420px] bg-panel text-foreground border border-foreground/10 shadow-xl shadow-primary/10">
+            <DialogContent className="sm:max-w-105 bg-panel text-foreground border border-foreground/10 shadow-xl shadow-primary/10">
                 <DialogHeader>
                     <DialogTitle className="text-foreground">Add Class</DialogTitle>
                     <DialogDescription className="text-foreground/70">Add a class to your weekly schedule.</DialogDescription>

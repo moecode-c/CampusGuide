@@ -31,7 +31,7 @@ export default function AdminSemesterTemplatesPage() {
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/admin/semester-templates", { cache: "no-store" });
+    const res = await fetch("/api/admin/semester-templates");
     const j = await res.json().catch(() => null);
     if (!res.ok) {
       setError(j?.error ?? "Failed to load templates");

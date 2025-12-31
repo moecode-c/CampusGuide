@@ -6,6 +6,7 @@ import { SemesterTemplate } from "@/server/models/SemesterTemplate";
 import { enforceRateLimit } from "@/server/security/rateLimit";
 import { requireRole } from "@/server/security/requireRole";
 import { invalidateSemesterTemplateCache } from "@/server/data/semesterTemplates";
+import { noStoreJson } from "@/server/httpCache";
 
 const patchSchema = z
   .object({
@@ -81,10 +82,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   await tpl.save();
   invalidateSemesterTemplateCache(tpl.academicYear);
 
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return noStoreJson({ ok: true }, 200);
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -118,8 +116,5 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   await SemesterTemplate.deleteOne({ _id: id });
   invalidateSemesterTemplateCache(doc.academicYear);
 
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return noStoreJson({ ok: true }, 200);
 }

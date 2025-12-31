@@ -35,7 +35,7 @@ export default function AdminResourcesPage() {
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/admin/resources", { cache: "no-store" });
+    const res = await fetch("/api/admin/resources");
     const j = await res.json().catch(() => null);
     if (!res.ok) {
       setError(j?.error ?? "Failed to load resources");

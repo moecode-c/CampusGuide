@@ -40,6 +40,7 @@ export default function AttendancePage() {
   const [labsPerWeek, setLabsPerWeek] = React.useState("1");
 
   const [courses, setCourses] = React.useState<CourseAttendance[]>([]);
+  const [hasHydrated, setHasHydrated] = React.useState(false);
 
   React.useEffect(() => {
     try {
@@ -49,16 +50,19 @@ export default function AttendancePage() {
       if (Array.isArray(parsed)) setCourses(parsed);
     } catch {
       // ignore
+    } finally {
+      setHasHydrated(true);
     }
   }, []);
 
   React.useEffect(() => {
+    if (!hasHydrated) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(courses));
     } catch {
       // ignore
     }
-  }, [courses]);
+  }, [courses, hasHydrated]);
 
   const weeksN = toInt(weeks);
   const lecturesPerWeekN = toInt(lecturesPerWeek);

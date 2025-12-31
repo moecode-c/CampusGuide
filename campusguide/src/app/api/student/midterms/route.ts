@@ -3,6 +3,7 @@ import { connectToDatabase } from "@/server/db";
 import { requireSession } from "@/server/security/requireSession";
 import { enforceRateLimit } from "@/server/security/rateLimit";
 import { MidtermGrade } from "@/server/models/MidtermGrade";
+import { jsonWithEtag, noStoreJson } from "@/server/httpCache";
 
 const itemSchema = z.object({
   subject: z.string().min(1).max(80).transform((v) => v.trim()),
@@ -32,10 +33,7 @@ export async function GET(req: Request) {
     .select({ subject: 1, midtermMark: 1, creditHours: 1 })
     .lean();
 
-  return new Response(JSON.stringify({ items }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return jsonWithEtag(req, { items }, { cacheControl: "private, max-age=0, must-revalidate" });
 }
 
 export async function PUT(req: Request) {
@@ -71,8 +69,5 @@ export async function PUT(req: Request) {
   await MidtermGrade.deleteMany({ userId: session.user.id });
   if (normalized.length) await MidtermGrade.insertMany(normalized);
 
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return noStoreJson({ ok: true }, 200);
 }

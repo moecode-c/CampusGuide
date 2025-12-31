@@ -2,6 +2,7 @@ import { z } from "zod";
 import { enforceRateLimit } from "@/server/security/rateLimit";
 import { requireSession } from "@/server/security/requireSession";
 import { getResourcesCached } from "@/server/data/resources";
+import { jsonWithEtag } from "@/server/httpCache";
 
 const querySchema = z.object({
   q: z.string().max(80).optional(),
@@ -64,8 +65,5 @@ export async function GET(req: Request) {
       createdAt: r.createdAt,
     }));
 
-  return new Response(JSON.stringify({ items }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return jsonWithEtag(req, { items }, { cacheControl: "private, max-age=0, must-revalidate" });
 }

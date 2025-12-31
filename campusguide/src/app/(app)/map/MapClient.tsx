@@ -87,7 +87,7 @@ export function MapClient() {
 
   const reload = React.useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/student/map", { cache: "no-store" });
+    const res = await fetch("/api/student/map");
     const j = await res.json().catch(() => null);
     if (!res.ok) {
       setError(j?.error ?? "Failed to load map data");
@@ -240,7 +240,7 @@ export function MapClient() {
                         className="flex w-full items-center justify-between gap-2 rounded-2xl bg-panel px-4 py-3 text-left transition hover:bg-panel/80"
                         onClick={() => setSelected(r)}
                       >
-                        <span className="font-extrabold flex-shrink-0">{r.roomCode}</span>
+                        <span className="font-extrabold shrink-0">{r.roomCode}</span>
                         <span className="text-xs text-foreground/70">{r.building} • Floor {r.floor}</span>
                       </button>
                     ))}
@@ -405,7 +405,7 @@ export function MapClient() {
                               </div>
 
                               {/* Tooltip - positioned below the pin */}
-                              <div className="absolute top-4 flex w-max max-w-[200px] flex-col items-center">
+                              <div className="absolute top-4 flex w-max max-w-50 flex-col items-center">
                                 <div className="mt-2 rounded-xl bg-nav px-3 py-2 text-xs font-semibold text-white shadow-lg">
                                   {selected.roomCode} • {selected.building} • Floor {selected.floor}
                                 </div>

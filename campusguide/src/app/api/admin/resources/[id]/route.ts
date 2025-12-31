@@ -4,6 +4,7 @@ import { Resource, ResourceTypes } from "@/server/models/Resource";
 import { enforceRateLimit } from "@/server/security/rateLimit";
 import { requireRole } from "@/server/security/requireRole";
 import { invalidateResourcesCache } from "@/server/data/resources";
+import { noStoreJson } from "@/server/httpCache";
 
 const updateSchema = z
     .object({
@@ -50,10 +51,7 @@ export async function DELETE(
 
     invalidateResourcesCache();
 
-    return new Response(JSON.stringify({ success: true }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-    });
+    return noStoreJson({ success: true }, 200);
 }
 
 export async function PATCH(
@@ -98,8 +96,5 @@ export async function PATCH(
 
     invalidateResourcesCache();
 
-    return new Response(JSON.stringify({ id: String(updated._id) }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-    });
+    return noStoreJson({ id: String(updated._id) }, 200);
 }

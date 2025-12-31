@@ -6,6 +6,7 @@ import { Event, EventTypes } from "@/server/models/Event";
 import { getSemesterTemplateForYear } from "@/server/data/semesterTemplates";
 import { RRule } from "rrule";
 import { computeExdatesForRule } from "@/server/calendar/exdates";
+import { jsonWithEtag } from "@/server/httpCache";
 
 export async function GET(req: Request) {
   const limited = await enforceRateLimit(req.headers, "student:map:get");
@@ -93,15 +94,13 @@ export async function GET(req: Request) {
     .sort((a: any, b: any) => new Date(a.start).getTime() - new Date(b.start).getTime())
     .slice(0, 60);
 
-  return new Response(
-    JSON.stringify({
+  return jsonWithEtag(
+    req,
+    {
       rooms: rooms.map((r: any) => ({ roomCode: r.roomCode, building: r.building, floor: r.floor, x: r.x, y: r.y })),
       upcoming,
       scheduleRoomCodes,
-    }),
-    {
-    status: 200,
-    headers: { "content-type": "application/json" },
-    }
+    },
+    { cacheControl: "private, max-age=0, must-revalidate" }
   );
 }

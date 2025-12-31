@@ -4,6 +4,7 @@ import { Room } from "@/server/models/Room";
 import { enforceRateLimit } from "@/server/security/rateLimit";
 import { requireRole } from "@/server/security/requireRole";
 import { invalidateRoomsCache } from "@/server/data/rooms";
+import { jsonWithEtag, noStoreJson } from "@/server/httpCache";
 
 const schema = z.object({
   roomCode: z.string().min(2).max(16).transform((v) => v.trim().toUpperCase()),
@@ -35,10 +36,7 @@ export async function GET(req: Request) {
     x: r.x,
     y: r.y,
   }));
-  return new Response(JSON.stringify({ items: normalized }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return jsonWithEtag(req, { items: normalized }, { cacheControl: "private, max-age=0, must-revalidate" });
 }
 
 export async function POST(req: Request) {
@@ -66,8 +64,5 @@ export async function POST(req: Request) {
   const created = await Room.create(parsed.data);
   invalidateRoomsCache();
 
-  return new Response(JSON.stringify({ id: String(created._id) }), {
-    status: 201,
-    headers: { "content-type": "application/json" },
-  });
+  return noStoreJson({ id: String(created._id) }, 201);
 }

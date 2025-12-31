@@ -6,6 +6,7 @@ import { Event, EventTypes } from "@/server/models/Event";
 import { getSemesterTemplateForYear } from "@/server/data/semesterTemplates";
 import { RRule } from "rrule";
 import { computeExdatesForRule } from "@/server/calendar/exdates";
+import { jsonWithEtag, noStoreJson } from "@/server/httpCache";
 
 function toRRuleUtcDate(dt: Date) {
   const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -88,10 +89,21 @@ export async function GET(req: Request) {
     };
   });
 
-  return new Response(JSON.stringify({ events, template: tpl ? { startDate: tpl.startDate, endDate: tpl.endDate, excludedRanges: tpl.excludedRanges, maxAbsencePercent: tpl.maxAbsencePercent } : null }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return jsonWithEtag(
+    req,
+    {
+      events,
+      template: tpl
+        ? {
+            startDate: tpl.startDate,
+            endDate: tpl.endDate,
+            excludedRanges: tpl.excludedRanges,
+            maxAbsencePercent: tpl.maxAbsencePercent,
+          }
+        : null,
+    },
+    { cacheControl: "private, max-age=0, must-revalidate" }
+  );
 }
 
 export async function POST(req: Request) {
@@ -144,10 +156,7 @@ export async function POST(req: Request) {
     rrule: parsed.data.isRecurring ? parsed.data.rrule : undefined,
   });
 
-  return new Response(JSON.stringify({ id: String(created._id) }), {
-    status: 201,
-    headers: { "content-type": "application/json" },
-  });
+  return noStoreJson({ id: String(created._id) }, 201);
 }
 
 export async function DELETE(req: Request) {
@@ -175,8 +184,5 @@ export async function DELETE(req: Request) {
   await connectToDatabase();
   const res = await Event.deleteMany({ userId: session.user.id, type: EventTypes.Lecture });
 
-  return new Response(JSON.stringify({ ok: true, deleted: res.deletedCount ?? 0 }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return noStoreJson({ ok: true, deleted: res.deletedCount ?? 0 }, 200);
 }

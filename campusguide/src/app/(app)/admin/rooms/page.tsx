@@ -58,7 +58,7 @@ export default function AdminRoomsPage() {
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/admin/rooms", { cache: "no-store" });
+    const res = await fetch("/api/admin/rooms");
     const j = await res.json().catch(() => null);
     if (!res.ok) {
       setError(j?.error ?? "Failed to load rooms");
