@@ -161,7 +161,7 @@ export function Navbar() {
             <Button
               variant="secondary"
               className="h-10"
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={() => signOut({ callbackUrl: "/" })}
             >
               <LogOut className="h-4 w-4" />
               Sign out
@@ -223,7 +223,7 @@ export function Navbar() {
                       type="button"
                       variant="secondary"
                       className="h-11 w-full justify-start"
-                      onClick={() => signOut({ callbackUrl: "/login" })}
+                      onClick={() => signOut({ callbackUrl: "/" })}
                     >
                       <LogOut className="h-4 w-4" />
                       Sign out

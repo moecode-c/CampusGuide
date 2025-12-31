@@ -39,12 +39,13 @@
   --nav: #0d0507;
   --panel: #12070b;
 
-  --primary: #b0122a;
-  --secondary: #8b0a18;
-  --accent: #4a131d;
-  --success: #0aa77b;
-  --warning: #d49a00;
-  --risk: #d10f35;
+  /* Brighter neon accents while keeping the same palette family */
+  --primary: #ff2148;
+  --secondary: #b0122a;
+  --accent: #6b0f20;
+  --success: #00e0a4;
+  --warning: #ffd24a;
+  --risk: #ff1f4d;
 }
 
 body {

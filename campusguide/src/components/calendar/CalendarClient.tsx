@@ -6,14 +6,14 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import rrulePlugin from "@fullcalendar/rrule";
-import { EventClickArg, EventDropArg, DateSelectArg } from "@fullcalendar/core";
+import { Select } from "@/components/ui/select";
+import { EventClickArg, EventDropArg } from "@fullcalendar/core";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { CalendarPlus, MapPinned, Save, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { MapPinned, Trash2, Clock, MapPin, User, Loader2 } from "lucide-react";
 
 type ApiEvent = {
   id: string;
@@ -21,69 +21,57 @@ type ApiEvent = {
   start?: string;
   end?: string;
   rrule?: any;
-  duration?: any;
-  exdate?: string[];
   extendedProps: {
-    type: "lecture" | "lab" | "midterm" | "assignment";
+    type: "lecture" | "lab";
     roomCode?: string | null;
-    building?: string | null;
+    professor?: string | null;
     isRecurring?: boolean;
   };
 };
 
-type Template = {
-  startDate: string;
-  endDate: string;
-  excludedRanges: Array<{ start: string; end: string; label: string }>;
-  maxAbsencePercent: number;
-} | null;
-
-function typeColor(type: ApiEvent["extendedProps"]["type"]) {
-  switch (type) {
-    case "lecture":
-      return "bg-accent/30 border-accent/40";
-    case "lab":
-      return "bg-secondary/20 border-secondary/30";
-    case "midterm":
-      return "bg-primary/20 border-primary/30";
-    case "assignment":
-      return "bg-warning/20 border-warning/30";
-  }
-}
-
-function toDatetimeLocalValue(d: Date) {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 export function CalendarClient() {
   const [events, setEvents] = React.useState<ApiEvent[]>([]);
-  const [template, setTemplate] = React.useState<Template>(null);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
-
   const [selected, setSelected] = React.useState<ApiEvent | null>(null);
+  const [isBusy, setIsBusy] = React.useState(false);
 
-  const [title, setTitle] = React.useState("");
-  const [type, setType] = React.useState<ApiEvent["extendedProps"]["type"]>("lecture");
-  const [start, setStart] = React.useState("");
-  const [end, setEnd] = React.useState("");
-  const [roomCode, setRoomCode] = React.useState("");
-  const [recurring, setRecurring] = React.useState(false);
-  const [byDay, setByDay] = React.useState<{ [k: string]: boolean }>({ MO: true, WE: false, SA: false, SU: false, TU: false, TH: false, FR: false });
-  const [until, setUntil] = React.useState("");
+  const eventClassNames = React.useCallback((arg: any) => {
+    const t = arg.event?.extendedProps?.type as ApiEvent["extendedProps"]["type"] | undefined;
+    return t ? [`cg-event--${t}`] : [];
+  }, []);
+
+  const renderEventContent = React.useCallback((arg: any) => {
+    const professor = arg.event.extendedProps?.professor as string | null | undefined;
+    const roomCode = arg.event.extendedProps?.roomCode as string | null | undefined;
+    const meta = [professor, roomCode].filter(Boolean).join(" • ");
+
+    return (
+      <div className="min-w-0">
+        <div className="fc-event-time">{arg.timeText}</div>
+        <div className="fc-event-title">{arg.event.title}</div>
+        {meta ? <div className="text-[0.6rem] font-medium opacity-90 truncate">{meta}</div> : null}
+      </div>
+    );
+  }, []);
+
+  // Edit State
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [editTitle, setEditTitle] = React.useState("");
+  const [editType, setEditType] = React.useState<"lecture" | "lab">("lecture");
+  const [editStart, setEditStart] = React.useState("");
+  const [editEnd, setEditEnd] = React.useState("");
+  const [editRoom, setEditRoom] = React.useState("");
+  const [editProf, setEditProf] = React.useState("");
 
   async function load() {
     setLoading(true);
     const res = await fetch("/api/student/events", { cache: "no-store" });
     const j = await res.json().catch(() => null);
-    if (!res.ok) {
-      setError(j?.error ?? "Failed to load calendar");
-      setLoading(false);
-      return;
+    if (res.ok) {
+      const raw = (j?.events ?? []) as any[];
+      const filtered = raw.filter((e) => e?.extendedProps?.type === "lecture" || e?.extendedProps?.type === "lab");
+      setEvents(filtered as ApiEvent[]);
     }
-    setEvents((j?.events ?? []) as ApiEvent[]);
-    setTemplate((j?.template ?? null) as Template);
     setLoading(false);
   }
 
@@ -91,279 +79,369 @@ export function CalendarClient() {
     load();
   }, []);
 
-  function resetFormFromSelection(e: ApiEvent) {
-    setTitle(e.title);
-    setType(e.extendedProps.type);
-    setRoomCode(e.extendedProps.roomCode ?? "");
-    setRecurring(Boolean(e.extendedProps.isRecurring));
-    const s = e.start ? new Date(e.start) : new Date();
-    const en = e.end ? new Date(e.end) : new Date(s.getTime() + 60 * 60 * 1000);
-    setStart(toDatetimeLocalValue(s));
-    setEnd(toDatetimeLocalValue(en));
-    setUntil("");
-  }
-
-  async function createEvent() {
-    setError(null);
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    const days = Object.entries(byDay)
-      .filter(([, v]) => v)
-      .map(([k]) => k)
-      .join(",");
-
-    const rrule = recurring
-      ? `FREQ=WEEKLY;BYDAY=${days}${until ? `;UNTIL=${new Date(until).toISOString().replace(/[-:]/g, "").split(".")[0]}Z` : ""}`
-      : undefined;
-
-    const res = await fetch("/api/student/events", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        title,
-        type,
-        start: startDate.toISOString(),
-        end: endDate.toISOString(),
-        roomCode: roomCode ? roomCode.trim().toUpperCase() : undefined,
-        isRecurring: recurring,
-        rrule,
-      }),
-    });
-
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setError(j.error ?? "Create failed");
-      return;
-    }
-    await load();
-  }
-
-  async function saveSelected() {
-    if (!selected) return;
-    setError(null);
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    const days = Object.entries(byDay)
-      .filter(([, v]) => v)
-      .map(([k]) => k)
-      .join(",");
-
-    const rrule = recurring
-      ? `FREQ=WEEKLY;BYDAY=${days}${until ? `;UNTIL=${new Date(until).toISOString().replace(/[-:]/g, "").split(".")[0]}Z` : ""}`
-      : undefined;
-
-    const res = await fetch(`/api/student/events/${selected.id}`,
-      {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          title,
-          type,
-          start: startDate.toISOString(),
-          end: endDate.toISOString(),
-          roomCode: roomCode ? roomCode.trim().toUpperCase() : undefined,
-          isRecurring: recurring,
-          rrule,
-        }),
-      }
-    );
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setError(j.error ?? "Save failed");
-      return;
-    }
-    await load();
-  }
-
-  async function deleteSelected() {
-    if (!selected) return;
-    setError(null);
-    const res = await fetch(`/api/student/events/${selected.id}`, { method: "DELETE" });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setError(j.error ?? "Delete failed");
-      return;
-    }
-    setSelected(null);
-    await load();
-  }
-
-  async function onDrop(arg: EventDropArg) {
-    const id = arg.event.id;
-    const start = arg.event.start;
-    const end = arg.event.end;
-    if (!start || !end) return;
-
-    await fetch(`/api/student/events/${id}`,
-      {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ start: start.toISOString(), end: end.toISOString() }),
-      }
-    );
-    // no-store reload
-    await load();
-  }
-
-  function onSelect(info: DateSelectArg) {
-    setSelected(null);
-    setTitle("");
-    setType("lecture");
-    setRoomCode("");
-    setRecurring(false);
-    setStart(toDatetimeLocalValue(info.start));
-    setEnd(toDatetimeLocalValue(info.end));
-    setUntil("");
-  }
-
+  // Handle Event Click -> Open Edit Modal
   function onEventClick(arg: EventClickArg) {
     const id = arg.event.id;
     const found = events.find((e) => e.id === id);
     if (found) {
       setSelected(found);
-      resetFormFromSelection(found);
+      setEditTitle(found.title);
+      setEditType(found.extendedProps.type === "lab" ? "lab" : "lecture");
+
+      // Parse start/end times - handle both string and rrule formats
+      try {
+        const startStr = typeof found.start === 'string' ? found.start : (found as any).rrule?.dtstart;
+        const endStr = typeof found.end === 'string' ? found.end : null;
+
+        if (startStr) {
+          const d = new Date(startStr);
+          if (!isNaN(d.getTime())) {
+            const hours = d.getHours().toString().padStart(2, '0');
+            const mins = d.getMinutes().toString().padStart(2, '0');
+            setEditStart(`${hours}:${mins}`);
+          } else {
+            setEditStart("09:00");
+          }
+        } else {
+          setEditStart("09:00");
+        }
+
+        if (endStr) {
+          const d = new Date(endStr);
+          if (!isNaN(d.getTime())) {
+            const hours = d.getHours().toString().padStart(2, '0');
+            const mins = d.getMinutes().toString().padStart(2, '0');
+            setEditEnd(`${hours}:${mins}`);
+          } else {
+            setEditEnd("10:00");
+          }
+        } else if (startStr) {
+          // Estimate end time as 1.5 hours after start
+          const d = new Date(startStr);
+          if (!isNaN(d.getTime())) {
+            d.setMinutes(d.getMinutes() + 90);
+            const hours = d.getHours().toString().padStart(2, '0');
+            const mins = d.getMinutes().toString().padStart(2, '0');
+            setEditEnd(`${hours}:${mins}`);
+          } else {
+            setEditEnd("10:00");
+          }
+        } else {
+          setEditEnd("10:00");
+        }
+      } catch (err) {
+        console.error("Error parsing event times:", err);
+        setEditStart("09:00");
+        setEditEnd("10:00");
+      }
+
+      setEditRoom(found.extendedProps.roomCode ?? "");
+      setEditProf(found.extendedProps.professor ?? "");
+      setEditOpen(true);
     }
   }
 
+  // Handle Drag & Drop
+  async function onDrop(arg: EventDropArg) {
+    const id = arg.event.id;
+    const start = arg.event.start;
+    const end = arg.event.end;
+    if (!start || !end) {
+      // For rrule-based events, FullCalendar should provide an end via duration.
+      // If it doesn't, avoid a silent no-op.
+      console.warn("Missing start/end for dropped event", { id, start, end });
+      return;
+    }
+
+    await fetch(`/api/student/events/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ start: start.toISOString(), end: end.toISOString() }),
+    });
+    // Silent reload
+    load();
+  }
+
+  async function deleteEvent() {
+    if (!selected) return;
+    if (!confirm("Are you sure you want to delete this event? This will remove all occurrences if it's recurring.")) return;
+
+    setIsBusy(true);
+    await fetch(`/api/student/events/${selected.id}`, { method: "DELETE" });
+    setIsBusy(false);
+    setEditOpen(false);
+    setSelected(null);
+    load();
+  }
+
+  async function saveEventChanges() {
+    if (!selected) return;
+    setIsBusy(true);
+    await fetch(`/api/student/events/${selected.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: editTitle,
+        type: editType,
+        startTime: editStart,
+        endTime: editEnd,
+        roomCode: editRoom || undefined,
+        professor: editProf || undefined,
+      })
+    });
+    setIsBusy(false);
+    setEditOpen(false);
+    load();
+  }
+
   return (
-    <div className="grid gap-6 grid-cols-1 lg:grid-cols-5">
-      <Card className="lg:col-span-3">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarPlus className="h-5 w-5 text-primary" />
-            Academic Calendar
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+    <div className="w-full">
+      <Card className="overflow-hidden ring-1 ring-primary/20 shadow-xl shadow-primary/10">
+        <CardContent className="p-0">
           {loading ? (
-            <p className="text-sm text-foreground/70">Loading…</p>
+        <div className="p-12 text-center text-foreground/70">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-primary/40" />
+              <p>Loading schedule...</p>
+            </div>
           ) : (
-            <div className="rounded-2xl bg-background p-2">
+        <div className="p-4 bg-nav text-xs min-h-[650px] h-[75dvh]">
+              <style jsx global>{`
+                    .fc {
+              --fc-border-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+              --fc-today-bg-color: color-mix(in srgb, var(--accent) 55%, transparent);
+                    --fc-event-bg-color: var(--primary);
+                    --fc-event-border-color: var(--secondary);
+              --fc-page-bg-color: var(--nav);
+                    }
+                    .fc th {
+                        padding: 12px 0;
+                        font-weight: 600;
+              color: color-mix(in srgb, var(--foreground) 65%, transparent);
+              background: var(--nav);
+                        text-transform: uppercase;
+                        font-size: 0.7rem;
+                        letter-spacing: 0.05em;
+                    }
+                    .fc-timegrid-slot-label {
+                        font-size: 0.7rem;
+              color: color-mix(in srgb, var(--foreground) 55%, transparent);
+                        font-weight: 500;
+                    }
+                    .fc-event {
+                        border-radius: 4px;
+                        padding: 2px 4px;
+                        font-size: 0.65rem;
+                        font-weight: 600;
+                        border: none;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                        line-height: 1.2;
+                    }
+                    .fc-event:hover {
+                        transform: translateY(-1px);
+              box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 35%, transparent);
+                    }
+                    .fc-v-event {
+                      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+                      border-left: 3px solid var(--warning);
+              color: var(--foreground);
+              box-shadow: 0 2px 10px color-mix(in srgb, var(--primary) 25%, transparent);
+                    }
+                    .fc-h-event {
+              background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+                        border: none;
+              color: var(--foreground);
+                    }
+
+                    /* Type color-coding */
+                    .fc .cg-event--lecture.fc-event,
+                    .fc .cg-event--lecture.fc-v-event,
+                    .fc .cg-event--lecture.fc-h-event {
+                      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+                      box-shadow: 0 2px 12px color-mix(in srgb, var(--primary) 30%, transparent);
+                    }
+                    .fc .cg-event--lecture.fc-v-event { border-left-color: var(--warning); }
+
+                    .fc .cg-event--lab.fc-event,
+                    .fc .cg-event--lab.fc-v-event,
+                    .fc .cg-event--lab.fc-h-event {
+                      background: linear-gradient(135deg, var(--secondary) 0%, var(--accent) 100%);
+                      box-shadow: 0 2px 12px color-mix(in srgb, var(--secondary) 28%, transparent);
+                    }
+                    .fc .cg-event--lab.fc-v-event { border-left-color: var(--primary); }
+                    .fc-day-today {
+              background-color: color-mix(in srgb, var(--accent) 60%, transparent) !important;
+                    }
+                    .fc-timegrid-now-indicator-line {
+              border-color: var(--warning);
+                        border-width: 2px;
+                    }
+                    .fc-timegrid-now-indicator-arrow {
+              border-color: var(--warning);
+                        border-width: 6px;
+                    }
+                    .fc-col-header-cell {
+              background: var(--nav) !important;
+                    }
+                    .fc-timegrid-slot {
+              border-color: color-mix(in srgb, var(--foreground) 16%, transparent) !important;
+                    }
+                    .fc-event-title {
+                        font-weight: 600;
+                        font-size: 0.65rem;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                        line-height: 1.2;
+                    }
+                    .fc-event-time {
+                        font-size: 0.6rem;
+                        font-weight: 500;
+                        opacity: 0.9;
+                    }
+                `}</style>
               <FullCalendar
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, rrulePlugin]}
                 initialView="timeGridWeek"
-                headerToolbar={{ left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,timeGridDay" }}
-                selectable
-                select={onSelect}
-                editable
-                eventDrop={onDrop}
+                headerToolbar={{ left: "prev,next today", center: "title", right: "timeGridWeek,timeGridDay" }}
+                selectable={false}
+                editable={true}
                 eventClick={onEventClick}
-                height="auto"
+                eventDrop={onDrop}
+                height="100%"
+                expandRows={true}
+                slotMinTime="08:00:00"
+                slotMaxTime="20:00:00"
+                allDaySlot={false}
                 nowIndicator
+                eventContent={renderEventContent}
+                eventClassNames={eventClassNames}
                 events={events as any}
+                dayHeaderFormat={{ weekday: 'short', day: 'numeric' }}
               />
             </div>
           )}
-          {template ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-              <Badge tone="neutral">Term: {new Date(template.startDate).toLocaleDateString()} → {new Date(template.endDate).toLocaleDateString()}</Badge>
-              {(template.excludedRanges ?? []).map((r) => (
-                <Badge key={r.label} tone="warning">
-                  Excluded: {r.label}
-                </Badge>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-3 text-xs text-foreground/60">No semester template set for your academic year yet (admin must add it).</p>
-          )}
         </CardContent>
       </Card>
 
-      <Card className="lg:col-span-2">
-        <CardHeader>
-          <CardTitle>{selected ? "Edit event" : "Add event"}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
+      {/* Full Event Edit Modal */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-[420px] bg-panel text-foreground border border-foreground/10 shadow-xl shadow-primary/10">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Edit Class</DialogTitle>
+            <DialogDescription className="text-foreground/70">Update class details below.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            {/* Title */}
             <div className="space-y-1">
-              <label className="text-sm font-semibold">Title</label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Physics Lecture" />
+              <label className="text-xs font-semibold text-foreground/80">Course Title</label>
+              <Input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="bg-background/40 border-foreground/15 text-foreground placeholder:text-foreground/50 focus:ring-accent/40"
+                placeholder="Course Name"
+              />
             </div>
+
+            {/* Type */}
             <div className="space-y-1">
-              <label className="text-sm font-semibold">Type</label>
-              <Select value={type} onChange={(e) => setType(e.target.value as any)}>
+              <label className="text-xs font-semibold text-foreground/80">Type</label>
+              <Select
+                value={editType}
+                onChange={(e) => setEditType(e.target.value as "lecture" | "lab")}
+                className="bg-background/40 border-foreground/15 text-foreground focus:ring-accent/40"
+              >
                 <option value="lecture">Lecture</option>
                 <option value="lab">Lab</option>
-                <option value="midterm">Midterm</option>
-                <option value="assignment">Assignment</option>
               </Select>
-              <div className={`mt-2 rounded-xl border p-2 text-xs font-semibold ${typeColor(type)}`}>Color-coded: {type}</div>
             </div>
 
+            {/* Time */}
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-sm font-semibold">Start</label>
-                <Input value={start} onChange={(e) => setStart(e.target.value)} type="datetime-local" />
+                <label className="text-xs font-semibold text-foreground/80">Start Time</label>
+                <Input
+                  type="time"
+                  value={editStart}
+                  onChange={(e) => setEditStart(e.target.value)}
+                  className="bg-background/40 border-foreground/15 text-foreground focus:ring-accent/40"
+                />
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-semibold">End</label>
-                <Input value={end} onChange={(e) => setEnd(e.target.value)} type="datetime-local" />
+                <label className="text-xs font-semibold text-foreground/80">End Time</label>
+                <Input
+                  type="time"
+                  value={editEnd}
+                  onChange={(e) => setEditEnd(e.target.value)}
+                  className="bg-background/40 border-foreground/15 text-foreground focus:ring-accent/40"
+                />
               </div>
             </div>
 
+            {/* Professor */}
             <div className="space-y-1">
-              <label className="text-sm font-semibold">Room (optional)</label>
-              <Input value={roomCode} onChange={(e) => setRoomCode(e.target.value)} placeholder="e.g. C204" />
-              {roomCode ? (
-                <Link
-                  className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline"
-                  href={`/map?room=${encodeURIComponent(roomCode.trim().toUpperCase())}`}
-                >
-                  <MapPinned className="h-4 w-4" />
-                  Find room on map
-                </Link>
-              ) : null}
-            </div>
-
-            <div className="rounded-2xl border border-foreground/10 bg-background p-3">
-              <label className="flex items-center justify-between gap-2 text-sm font-semibold">
-                <span>Recurring (weekly)</span>
-                <input type="checkbox" checked={recurring} onChange={(e) => setRecurring(e.target.checked)} />
+              <label className="text-xs font-semibold text-foreground/80 flex items-center gap-1">
+                <User className="w-3 h-3" /> Professor
               </label>
-              {recurring ? (
-                <div className="mt-3 space-y-2">
-                  <div className="grid grid-cols-4 gap-2">
-                    {(["MO", "TU", "WE", "TH", "FR", "SA", "SU"] as const).map((d) => (
-                      <label key={d} className="flex items-center gap-2 rounded-xl border border-foreground/10 bg-panel px-2 py-2 text-xs font-semibold">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(byDay[d])}
-                          onChange={(e) => setByDay((p) => ({ ...p, [d]: e.target.checked }))}
-                        />
-                        {d}
-                      </label>
-                    ))}
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-semibold">Repeat until (optional)</label>
-                    <Input value={until} onChange={(e) => setUntil(e.target.value)} type="date" />
-                  </div>
-                  <p className="text-xs text-foreground/70">Recurring lectures/labs automatically skip admin-defined excluded ranges.</p>
-                </div>
-              ) : null}
+              <Input
+                value={editProf}
+                onChange={(e) => setEditProf(e.target.value)}
+                className="bg-background/40 border-foreground/15 text-foreground placeholder:text-foreground/50 focus:ring-accent/40"
+                placeholder="Dr. Ahmed Hassan"
+              />
             </div>
 
-            {error ? <p className="text-sm font-semibold text-risk">{error}</p> : null}
-
-            <div className="flex flex-wrap gap-2 pt-1">
-              {selected ? (
-                <>
-                  <Button type="button" variant="secondary" onClick={saveSelected}>
-                    <Save className="h-4 w-4" /> Save
-                  </Button>
-                  <Button type="button" variant="danger" onClick={deleteSelected}>
-                    <Trash2 className="h-4 w-4" /> Delete
-                  </Button>
-                </>
-              ) : (
-                <Button type="button" onClick={createEvent}>
-                  <CalendarPlus className="h-4 w-4" /> Add
-                </Button>
+            {/* Location */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-foreground/80 flex items-center gap-1">
+                <MapPin className="w-3 h-3" /> Location
+              </label>
+              <Input
+                value={editRoom}
+                onChange={(e) => setEditRoom(e.target.value)}
+                className="bg-background/40 border-foreground/15 text-foreground placeholder:text-foreground/50 focus:ring-accent/40"
+                placeholder="Room (e.g. RC1, 242)"
+              />
+              {editRoom && (
+                <Link
+                  href={`/map?room=${encodeURIComponent(editRoom)}`}
+                  className="text-xs text-primary hover:underline flex items-center gap-1 mt-1"
+                >
+                  <MapPinned className="w-3 h-3" /> View on Map
+                </Link>
               )}
             </div>
+
+            {selected?.extendedProps.isRecurring && (
+              <p className="text-xs text-foreground/60 flex items-center gap-1">
+                <Clock className="w-3 h-3" /> Repeats Weekly
+              </p>
+            )}
           </div>
-        </CardContent>
-      </Card>
+
+          <DialogFooter className="flex gap-2 sm:justify-between border-t border-foreground/10 pt-4 mt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={deleteEvent}
+              disabled={isBusy}
+              className="text-risk hover:bg-risk/10"
+            >
+              {isBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Delete
+            </Button>
+            <Button
+              size="sm"
+              onClick={saveEventChanges}
+              disabled={isBusy}
+              className="shadow-lg shadow-primary/20"
+            >
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

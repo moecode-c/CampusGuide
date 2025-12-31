@@ -12,7 +12,8 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  const limited = await enforceRateLimit(req.headers, "auth:register");
+  // Stricter limits for spam-prone endpoint
+  const limited = await enforceRateLimit(req.headers, "auth:register", { points: 5, duration: 60 });
   if (limited) return limited;
 
   const json = await req.json().catch(() => null);
@@ -23,6 +24,14 @@ export async function POST(req: Request) {
       headers: { "content-type": "application/json" },
     });
   }
+
+  // Additional limiter keyed by email to slow down repeated attempts.
+  const limitedEmail = await enforceRateLimit(req.headers, "auth:register:email", {
+    points: 3,
+    duration: 60,
+    identity: parsed.data.email,
+  });
+  if (limitedEmail) return limitedEmail;
 
   try {
     await connectToDatabase();

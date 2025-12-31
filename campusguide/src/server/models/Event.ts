@@ -3,8 +3,6 @@ import mongoose, { Schema, type InferSchemaType, type Model } from "mongoose";
 export const EventTypes = {
   Lecture: "lecture",
   Lab: "lab",
-  Midterm: "midterm",
-  Assignment: "assignment",
 } as const;
 
 export type EventType = (typeof EventTypes)[keyof typeof EventTypes];
@@ -18,6 +16,7 @@ const eventSchema = new Schema(
     end: { type: Date, required: true },
     roomCode: { type: String },
     building: { type: String },
+    professor: { type: String },
     isRecurring: { type: Boolean, default: false },
     rrule: { type: String },
   },

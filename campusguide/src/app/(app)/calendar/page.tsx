@@ -1,6 +1,9 @@
 "use client";
 
+import * as React from "react";
 import dynamic from "next/dynamic";
+import { ScheduleManager } from "@/components/calendar/ScheduleManager";
+import { Button } from "@/components/ui/button";
 
 const CalendarClient = dynamic(
   () => import("@/components/calendar/CalendarClient").then((m) => m.CalendarClient),
@@ -8,12 +11,40 @@ const CalendarClient = dynamic(
 );
 
 export default function CalendarPage() {
+  // We force a refresh of the key to reload calendar data after an update
+  const [key, setKey] = React.useState(0);
+  const [clearing, setClearing] = React.useState(false);
+
+  async function clearLectures() {
+    if (!confirm("Clear all lectures from your calendar? This cannot be undone.")) return;
+    setClearing(true);
+    const res = await fetch("/api/student/events?type=lecture", { method: "DELETE" });
+    setClearing(false);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(j.error ?? "Failed to clear lectures");
+      return;
+    }
+    setKey((k) => k + 1);
+  }
+
   return (
     <div className="space-y-2">
-      <h1 className="text-2xl font-extrabold tracking-tight">Calendar</h1>
-      <p className="text-sm text-foreground/70">Month & week views with drag-and-drop and recurring lectures/labs.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight">Calendar</h1>
+          <p className="text-sm text-foreground/70">Manage your weekly schedule.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="danger" disabled={clearing} onClick={clearLectures}>
+            {clearing ? "Clearing…" : "Clear Lectures"}
+          </Button>
+          <ScheduleManager onUpdate={() => setKey(k => k + 1)} />
+        </div>
+      </div>
+
       <div className="pt-4">
-        <CalendarClient />
+        <CalendarClient key={key} />
       </div>
     </div>
   );

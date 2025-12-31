@@ -7,11 +7,22 @@ import { getSemesterTemplateForYear } from "@/server/data/semesterTemplates";
 import { RRule } from "rrule";
 import { computeExdatesForRule } from "@/server/calendar/exdates";
 
+function toRRuleUtcDate(dt: Date) {
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  return `${dt.getUTCFullYear()}${pad2(dt.getUTCMonth() + 1)}${pad2(dt.getUTCDate())}T${pad2(dt.getUTCHours())}${pad2(dt.getUTCMinutes())}${pad2(dt.getUTCSeconds())}Z`;
+}
+
+function toFullCalendarRRuleString(rrule: string, dtstart: Date) {
+  const trimmed = rrule.trim();
+  const rruleLine = trimmed.toUpperCase().startsWith("RRULE:") ? trimmed : `RRULE:${trimmed}`;
+  return `DTSTART:${toRRuleUtcDate(dtstart)}\n${rruleLine}`;
+}
+
 const isoDate = z.string().datetime();
 
 const baseSchema = z.object({
   title: z.string().min(1).max(120).transform((v) => v.trim()),
-  type: z.enum([EventTypes.Lecture, EventTypes.Lab, EventTypes.Midterm, EventTypes.Assignment]),
+  type: z.enum([EventTypes.Lecture, EventTypes.Lab]),
   start: isoDate,
   end: isoDate,
   roomCode: z.string().max(16).optional().transform((v) => (v ? v.trim().toUpperCase() : undefined)),
@@ -45,6 +56,7 @@ export async function GET(req: Request) {
       extendedProps: {
         type: e.type,
         roomCode: e.roomCode ?? null,
+        professor: e.professor ?? null,
         building: e.building ?? null,
         isRecurring: Boolean(e.isRecurring),
       },
@@ -63,16 +75,17 @@ export async function GET(req: Request) {
 
       return {
         ...common,
-        rrule: {
-          ...options,
-          dtstart: dtstart.toISOString(),
-        },
+        rrule: toFullCalendarRRuleString(e.rrule, dtstart),
         duration: { milliseconds: durationMs },
         exdate,
       };
     }
 
-    return { ...common, start: new Date(e.start).toISOString(), end: new Date(e.end).toISOString() };
+    return {
+      ...common,
+      start: new Date(e.start).toISOString(),
+      end: new Date(e.end).toISOString(),
+    };
   });
 
   return new Response(JSON.stringify({ events, template: tpl ? { startDate: tpl.startDate, endDate: tpl.endDate, excludedRanges: tpl.excludedRanges, maxAbsencePercent: tpl.maxAbsencePercent } : null }), {
@@ -133,6 +146,37 @@ export async function POST(req: Request) {
 
   return new Response(JSON.stringify({ id: String(created._id) }), {
     status: 201,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+export async function DELETE(req: Request) {
+  const limited = await enforceRateLimit(req.headers, "student:events:bulk-delete");
+  if (limited) return limited;
+
+  const session = await requireSession();
+  if (!session) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  const url = new URL(req.url);
+  const type = url.searchParams.get("type");
+
+  if (type !== EventTypes.Lecture) {
+    return new Response(JSON.stringify({ error: "Invalid type" }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  await connectToDatabase();
+  const res = await Event.deleteMany({ userId: session.user.id, type: EventTypes.Lecture });
+
+  return new Response(JSON.stringify({ ok: true, deleted: res.deletedCount ?? 0 }), {
+    status: 200,
     headers: { "content-type": "application/json" },
   });
 }

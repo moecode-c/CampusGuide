@@ -12,6 +12,7 @@ const rowSchema = z.object({
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
   roomCode: z.string().max(16).optional().transform((v) => (v ? v.trim().toUpperCase() : undefined)),
+  professor: z.string().max(100).optional().transform((v) => v?.trim()),
 });
 
 const schema = z.object({
@@ -35,7 +36,8 @@ function withTime(date: Date, hhmm: string) {
 }
 
 export async function POST(req: Request) {
-  const limited = await enforceRateLimit(req.headers, "student:schedule:import");
+  // Import can be abused; keep it tighter than general endpoints.
+  const limited = await enforceRateLimit(req.headers, "student:schedule:import", { points: 10, duration: 60 });
   if (limited) return limited;
 
   const session = await requireSession();
@@ -46,6 +48,14 @@ export async function POST(req: Request) {
     });
   }
 
+  // Additional per-user limiter so shared networks don't block each other.
+  const limitedUser = await enforceRateLimit(req.headers, "student:schedule:import:user", {
+    points: 20,
+    duration: 60,
+    identity: session.user.id,
+  });
+  if (limitedUser) return limitedUser;
+
   const json = await req.json().catch(() => null);
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
@@ -55,12 +65,21 @@ export async function POST(req: Request) {
     });
   }
 
-  const tpl = await getSemesterTemplateForYear(session.user.academicYear);
+  let tpl = await getSemesterTemplateForYear(session.user.academicYear);
+
+  // Fallback for demo/dev if no template exists
   if (!tpl) {
-    return new Response(JSON.stringify({ error: "Semester template not configured for your academic year" }), {
-      status: 409,
-      headers: { "content-type": "application/json" },
-    });
+    const now = new Date();
+    const fourMonths = new Date();
+    fourMonths.setMonth(now.getMonth() + 4);
+
+    tpl = {
+      id: "fallback",
+      academicYear: session.user.academicYear,
+      startDate: now,
+      endDate: fourMonths,
+      holidays: []
+    } as any;
   }
 
   const termStart = new Date(tpl.startDate);
@@ -80,7 +99,8 @@ export async function POST(req: Request) {
       type: r.type,
       start,
       end,
-      roomCode: r.roomCode,
+      roomCode: r.roomCode || undefined,
+      professor: r.professor || undefined,
       isRecurring: true,
       rrule: `FREQ=WEEKLY;BYDAY=${r.dayOfWeek};UNTIL=${until}`,
     };

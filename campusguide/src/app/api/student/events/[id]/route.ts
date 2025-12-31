@@ -7,18 +7,39 @@ import { enforceRateLimit } from "@/server/security/rateLimit";
 import { Event, EventTypes } from "@/server/models/Event";
 
 const isoDate = z.string().datetime();
+const hhmmTime = z.string().regex(/^\d{2}:\d{2}$/).optional();
+
+function bydayFromDate(d: Date) {
+  const map = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"] as const;
+  return map[d.getDay()] ?? "MO";
+}
+
+function withByDay(rule: string, byday: string) {
+  const trimmed = rule.trim();
+  const hasPrefix = trimmed.toUpperCase().startsWith("RRULE:");
+  const body = hasPrefix ? trimmed.slice("RRULE:".length) : trimmed;
+  const nextBody = /(^|;)BYDAY=/.test(body) ? body.replace(/(^|;)BYDAY=[A-Z,]+/g, `$1BYDAY=${byday}`) : `${body};BYDAY=${byday}`;
+  return hasPrefix ? `RRULE:${nextBody}` : nextBody;
+}
 
 const patchSchema = z
   .object({
     title: z.string().min(1).max(120).transform((v) => v.trim()).optional(),
-    type: z.enum([EventTypes.Lecture, EventTypes.Lab, EventTypes.Midterm, EventTypes.Assignment]).optional(),
+    type: z.enum([EventTypes.Lecture, EventTypes.Lab]).optional(),
     start: isoDate.optional(),
     end: isoDate.optional(),
+    startTime: hhmmTime,  // HH:MM format for time-only updates
+    endTime: hhmmTime,    // HH:MM format for time-only updates
     roomCode: z
       .string()
       .max(16)
       .optional()
       .transform((v) => (v ? v.trim().toUpperCase() : v)),
+    professor: z
+      .string()
+      .max(100)
+      .optional()
+      .transform((v) => (v ? v.trim() : v)),
     building: z
       .string()
       .max(8)
@@ -76,6 +97,29 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       status: 404,
       headers: { "content-type": "application/json" },
     });
+  }
+
+  // Handle HH:MM time updates (update time only, keep date)
+  if (update.startTime && found.start) {
+    const [h, m] = update.startTime.split(":").map(Number);
+    const d = new Date(found.start);
+    d.setHours(h, m, 0, 0);
+    update.start = d;
+    delete update.startTime;
+  }
+  if (update.endTime && found.end) {
+    const [h, m] = update.endTime.split(":").map(Number);
+    const d = new Date(found.end);
+    d.setHours(h, m, 0, 0);
+    update.end = d;
+    delete update.endTime;
+  }
+
+  // If a recurring event is moved (drag/drop), update its BYDAY to match the new start day.
+  // This makes the whole series move to the new weekday.
+  if (found.isRecurring && found.rrule && update.start instanceof Date && !update.rrule) {
+    const byday = bydayFromDate(update.start);
+    update.rrule = withByDay(found.rrule, byday);
   }
 
   Object.assign(found, update);
