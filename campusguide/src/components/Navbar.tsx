@@ -44,7 +44,7 @@ function NavLink({
           : "text-foreground/80 hover:bg-panel/60 hover:text-foreground"
       )}
     >
-      <span className="text-foreground/80">{icon}</span>
+      <span className={cn("text-foreground/80", active && "text-white")}>{icon}</span>
       <span>{label}</span>
     </Link>
   );
@@ -89,7 +89,7 @@ export function Navbar() {
           <span className="min-w-0 truncate text-base font-extrabold tracking-tight text-foreground">CampusGuide</span>
         </Link>
 
-        <div className="flex items-center gap-2 lg:hidden">
+        <div className="flex items-center gap-2 md:hidden">
           <Button
             type="button"
             variant="secondary"
@@ -101,7 +101,7 @@ export function Navbar() {
           </Button>
         </div>
 
-        <nav className="hidden items-center gap-2 lg:flex">
+        <nav className="hidden items-center gap-2 md:flex">
           <NavLink href={authed ? "/dashboard" : "/"} icon={<LayoutDashboard className="h-4 w-4" />} label={authed ? "Dashboard" : "Home"} />
 
           <div className="relative">
@@ -147,7 +147,7 @@ export function Navbar() {
           ) : null}
         </nav>
 
-        <div className="hidden items-center gap-2 lg:flex">
+        <div className="hidden items-center gap-2 md:flex">
           {!authed ? (
             <>
               <Link href="/login" className="hidden sm:block">
@@ -167,7 +167,7 @@ export function Navbar() {
       </div>
 
       {mobileOpen ? (
-        <div className="lg:hidden">
+        <div className="md:hidden">
           <button
             type="button"
             className="fixed inset-0 z-50 bg-background/70 backdrop-blur-sm"

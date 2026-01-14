@@ -65,5 +65,6 @@ export async function GET(req: Request) {
       createdAt: r.createdAt,
     }));
 
-  return jsonWithEtag(req, { items }, { cacheControl: "private, max-age=0, must-revalidate" });
+  // Resource catalog changes infrequently; avoid refetching on every navigation.
+  return jsonWithEtag(req, { items }, { cacheControl: "private, max-age=300, stale-while-revalidate=3600" });
 }

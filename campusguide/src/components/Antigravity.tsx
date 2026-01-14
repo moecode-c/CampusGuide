@@ -25,6 +25,7 @@ export interface AntigravityProps {
   pulseSpeed?: number;
   particleShape?: "capsule" | "sphere" | "box" | "tetrahedron";
   fieldStrength?: number;
+  responsive?: boolean;
   eventSource?: HTMLElement | null;
   pointer?: { x: number; y: number };
 }
@@ -47,6 +48,7 @@ const AntigravityInner: React.FC<AntigravityInnerProps> = ({
   pulseSpeed = 3,
   particleShape = "capsule",
   fieldStrength = 10,
+  responsive = true,
   pointer,
 }) => {
   const meshRef = useRef<any>(null);
@@ -147,6 +149,13 @@ const AntigravityInner: React.FC<AntigravityInnerProps> = ({
     const targetX = virtualMouse.current.x;
     const targetY = virtualMouse.current.y;
 
+    const minDim = Math.min(state.viewport.width, state.viewport.height);
+    const viewportScale = responsive ? Math.max(0.7, Math.min(1.4, minDim / 20)) : 1;
+    const effectiveMagnetRadius = magnetRadius * viewportScale;
+    const effectiveRingRadius = ringRadius * viewportScale;
+    const effectiveParticleSize = particleSize * viewportScale;
+    const effectiveWaveAmplitude = waveAmplitude * viewportScale;
+
     const globalRotation = state.clock.getElapsedTime() * rotationSpeed;
 
     particles.forEach((particle, i) => {
@@ -170,17 +179,17 @@ const AntigravityInner: React.FC<AntigravityInnerProps> = ({
 
       const targetPos = { x: mx, y: my, z: mz * depthFactor };
 
-      if (dist < magnetRadius) {
+      if (dist < effectiveMagnetRadius) {
         const angle = Math.atan2(dy, dx) + globalRotation;
 
-        const wave = Math.sin(t * waveSpeed + angle) * (0.5 * waveAmplitude);
+        const wave = Math.sin(t * waveSpeed + angle) * (0.5 * effectiveWaveAmplitude);
         const deviation = randomRadiusOffset * (5 / (fieldStrength + 0.1));
 
-        const currentRingRadius = ringRadius + wave + deviation;
+        const currentRingRadius = effectiveRingRadius + wave + deviation;
 
         targetPos.x = projectedTargetX + currentRingRadius * Math.cos(angle);
         targetPos.y = projectedTargetY + currentRingRadius * Math.sin(angle);
-        targetPos.z = mz * depthFactor + Math.sin(t) * (1 * waveAmplitude * depthFactor);
+        targetPos.z = mz * depthFactor + Math.sin(t) * (1 * effectiveWaveAmplitude * depthFactor);
       }
 
       particle.cx += (targetPos.x - particle.cx) * lerpSpeed;
@@ -194,12 +203,12 @@ const AntigravityInner: React.FC<AntigravityInnerProps> = ({
 
       const currentDistToMouse = Math.sqrt(Math.pow(particle.cx - projectedTargetX, 2) + Math.pow(particle.cy - projectedTargetY, 2));
 
-      const distFromRing = Math.abs(currentDistToMouse - ringRadius);
+      const distFromRing = Math.abs(currentDistToMouse - effectiveRingRadius);
       let scaleFactor = 1 - distFromRing / 10;
 
       scaleFactor = Math.max(0, Math.min(1, scaleFactor));
 
-      const finalScale = scaleFactor * (0.8 + Math.sin(t * pulseSpeed) * 0.2 * particleVariance) * particleSize;
+      const finalScale = scaleFactor * (0.8 + Math.sin(t * pulseSpeed) * 0.2 * particleVariance) * effectiveParticleSize;
       dummy.scale.set(finalScale, finalScale, finalScale);
 
       dummy.updateMatrix();

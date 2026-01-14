@@ -5,9 +5,8 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import rrulePlugin from "@fullcalendar/rrule";
 import { Select } from "@/components/ui/select";
-import { EventClickArg, EventDropArg } from "@fullcalendar/core";
+import { EventClickArg } from "@fullcalendar/core";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,20 +19,20 @@ type ApiEvent = {
   title: string;
   start?: string;
   end?: string;
-  rrule?: any;
   extendedProps: {
     type: "lecture" | "lab";
     roomCode?: string | null;
     professor?: string | null;
     isRecurring?: boolean;
+    baseId?: string;
   };
 };
 
 export function CalendarClient() {
-  const [events, setEvents] = React.useState<ApiEvent[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [selected, setSelected] = React.useState<ApiEvent | null>(null);
   const [isBusy, setIsBusy] = React.useState(false);
+  const calendarRef = React.useRef<FullCalendar | null>(null);
 
   const [initialView, setInitialView] = React.useState<"timeGridWeek" | "timeGridDay">("timeGridWeek");
 
@@ -68,109 +67,108 @@ export function CalendarClient() {
   const [editOpen, setEditOpen] = React.useState(false);
   const [editTitle, setEditTitle] = React.useState("");
   const [editType, setEditType] = React.useState<"lecture" | "lab">("lecture");
+  const [editDow, setEditDow] = React.useState<"SU" | "MO" | "TU" | "WE" | "TH" | "FR" | "SA">("SA");
   const [editStart, setEditStart] = React.useState("");
   const [editEnd, setEditEnd] = React.useState("");
   const [editRoom, setEditRoom] = React.useState("");
   const [editProf, setEditProf] = React.useState("");
 
-  async function load() {
-    setLoading(true);
-    const res = await fetch("/api/student/events");
-    const j = await res.json().catch(() => null);
-    if (res.ok) {
-      const raw = (j?.events ?? []) as any[];
-      const filtered = raw.filter((e) => e?.extendedProps?.type === "lecture" || e?.extendedProps?.type === "lab");
-      setEvents(filtered as ApiEvent[]);
-    }
-    setLoading(false);
+  function dowCodeFromDate(d: Date) {
+    const map = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"] as const;
+    return (map[d.getDay()] ?? "MO") as typeof map[number];
   }
 
-  React.useEffect(() => {
-    load();
+  function hhmm(d: Date) {
+    const h = String(d.getHours()).padStart(2, "0");
+    const m = String(d.getMinutes()).padStart(2, "0");
+    return `${h}:${m}`;
+  }
+
+  const refetch = React.useCallback(() => {
+    calendarRef.current?.getApi().refetchEvents();
   }, []);
+
+  React.useEffect(() => {
+    const handler = () => refetch();
+    window.addEventListener("cg:calendar:refetch", handler);
+    return () => window.removeEventListener("cg:calendar:refetch", handler);
+  }, [refetch]);
+
+  const fetchEvents = React.useCallback(async (info: any, successCallback: any, failureCallback: any) => {
+    try {
+      const url = new URL("/api/student/events", window.location.origin);
+      url.searchParams.set("start", info.startStr);
+      url.searchParams.set("end", info.endStr);
+
+      const res = await fetch(url.toString(), {
+        cache: "no-store",
+        headers: { "cache-control": "no-store" },
+      });
+      const j = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(j?.error ?? "Failed to load schedule");
+
+      const raw = (j?.events ?? []) as any[];
+      const filtered = raw.filter((e) => e?.extendedProps?.type === "lecture" || e?.extendedProps?.type === "lab");
+      successCallback(filtered);
+    } catch (err) {
+      failureCallback(err);
+    }
+  }, []);
+
+  async function patchEvent(id: string, body: Record<string, unknown>) {
+    try {
+      const res = await fetch(`/api/student/events/${id}` as const, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        console.warn("Failed to update event", { id, status: res.status, error: j?.error });
+        return { ok: false as const, error: (j?.error as string | undefined) ?? "Update failed" };
+      }
+
+      return { ok: true as const };
+    } catch (err) {
+      console.warn("Failed to update event (network)", { id, err });
+      return { ok: false as const, error: "Network error" };
+    }
+  }
 
   // Handle Event Click -> Open Edit Modal
   function onEventClick(arg: EventClickArg) {
-    const id = arg.event.id;
-    const found = events.find((e) => e.id === id);
-    if (found) {
-      setSelected(found);
-      setEditTitle(found.title);
-      setEditType(found.extendedProps.type === "lab" ? "lab" : "lecture");
+    const ext = (arg.event.extendedProps ?? {}) as any;
+    const baseId = (ext.baseId as string | undefined) ?? arg.event.groupId ?? String(arg.event.id).split(":")[0];
+    const fallback: ApiEvent = {
+      id: baseId,
+      title: arg.event.title,
+      extendedProps: {
+        type: (ext.type as any) === "lab" ? "lab" : "lecture",
+        roomCode: (ext.roomCode as any) ?? null,
+        professor: (ext.professor as any) ?? null,
+        isRecurring: Boolean((ext.isRecurring as any) ?? false),
+        baseId,
+      },
+    };
 
-      // Parse start/end times - handle both string and rrule formats
-      try {
-        const startStr = typeof found.start === 'string' ? found.start : (found as any).rrule?.dtstart;
-        const endStr = typeof found.end === 'string' ? found.end : null;
+    setSelected(fallback);
+    setEditTitle(fallback.title);
+    setEditType(fallback.extendedProps.type === "lab" ? "lab" : "lecture");
+    setEditRoom(fallback.extendedProps.roomCode ?? "");
+    setEditProf(fallback.extendedProps.professor ?? "");
 
-        if (startStr) {
-          const d = new Date(startStr);
-          if (!isNaN(d.getTime())) {
-            const hours = d.getHours().toString().padStart(2, '0');
-            const mins = d.getMinutes().toString().padStart(2, '0');
-            setEditStart(`${hours}:${mins}`);
-          } else {
-            setEditStart("09:00");
-          }
-        } else {
-          setEditStart("09:00");
-        }
+    // Always use the clicked occurrence's times (works for recurring + one-off)
+    const start = arg.event.start ?? new Date();
+    const end = arg.event.end ?? new Date(start.getTime() + 60 * 60 * 1000);
+    setEditStart(hhmm(start));
+    setEditEnd(hhmm(end));
+    setEditDow(dowCodeFromDate(start));
 
-        if (endStr) {
-          const d = new Date(endStr);
-          if (!isNaN(d.getTime())) {
-            const hours = d.getHours().toString().padStart(2, '0');
-            const mins = d.getMinutes().toString().padStart(2, '0');
-            setEditEnd(`${hours}:${mins}`);
-          } else {
-            setEditEnd("10:00");
-          }
-        } else if (startStr) {
-          // Estimate end time as 1.5 hours after start
-          const d = new Date(startStr);
-          if (!isNaN(d.getTime())) {
-            d.setMinutes(d.getMinutes() + 90);
-            const hours = d.getHours().toString().padStart(2, '0');
-            const mins = d.getMinutes().toString().padStart(2, '0');
-            setEditEnd(`${hours}:${mins}`);
-          } else {
-            setEditEnd("10:00");
-          }
-        } else {
-          setEditEnd("10:00");
-        }
-      } catch (err) {
-        console.error("Error parsing event times:", err);
-        setEditStart("09:00");
-        setEditEnd("10:00");
-      }
-
-      setEditRoom(found.extendedProps.roomCode ?? "");
-      setEditProf(found.extendedProps.professor ?? "");
-      setEditOpen(true);
-    }
+    // Popup-only editing
+    setEditOpen(true);
   }
 
-  // Handle Drag & Drop
-  async function onDrop(arg: EventDropArg) {
-    const id = arg.event.id;
-    const start = arg.event.start;
-    const end = arg.event.end;
-    if (!start || !end) {
-      // For rrule-based events, FullCalendar should provide an end via duration.
-      // If it doesn't, avoid a silent no-op.
-      console.warn("Missing start/end for dropped event", { id, start, end });
-      return;
-    }
-
-    await fetch(`/api/student/events/${id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ start: start.toISOString(), end: end.toISOString() }),
-    });
-    // Silent reload
-    load();
-  }
 
   async function deleteEvent() {
     if (!selected) return;
@@ -181,41 +179,48 @@ export function CalendarClient() {
     setIsBusy(false);
     setEditOpen(false);
     setSelected(null);
-    load();
+    refetch();
   }
 
   async function saveEventChanges() {
     if (!selected) return;
     setIsBusy(true);
-    await fetch(`/api/student/events/${selected.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        title: editTitle,
-        type: editType,
-        startTime: editStart,
-        endTime: editEnd,
-        roomCode: editRoom || undefined,
-        professor: editProf || undefined,
-      })
+
+    const result = await patchEvent(selected.id, {
+      title: editTitle,
+      type: editType,
+      dayOfWeek: selected.extendedProps.isRecurring ? editDow : undefined,
+      startTime: editStart,
+      endTime: editEnd,
+      roomCode: editRoom || undefined,
+      professor: editProf || undefined,
     });
+
     setIsBusy(false);
+    if (!result.ok) {
+      alert(result.error);
+      return;
+    }
+
     setEditOpen(false);
-    load();
+    refetch();
   }
 
   return (
     <div className="w-full">
       <Card className="overflow-hidden ring-1 ring-primary/20 shadow-xl shadow-primary/10">
         <CardContent className="p-0">
-          {loading ? (
-        <div className="p-12 text-center text-foreground/70">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-primary/40" />
-              <p>Loading schedule...</p>
-            </div>
-          ) : (
-        <div className="h-[70dvh] overflow-x-auto bg-nav p-4 text-xs sm:h-[75dvh]">
-              <style jsx global>{`
+          <div className="relative h-[70dvh] overflow-x-auto bg-nav p-4 text-xs sm:h-[75dvh]">
+            {loading ? (
+              <div className="absolute inset-0 z-10 grid place-items-center bg-nav/70 backdrop-blur-[1px]">
+                <div className="text-center text-foreground/70">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-primary/40" />
+                  <p>Loading schedule...</p>
+                </div>
+              </div>
+            ) : null}
+
+            <style jsx global>{`
                     .fc {
               --fc-border-color: color-mix(in srgb, var(--foreground) 16%, transparent);
               --fc-today-bg-color: color-mix(in srgb, var(--accent) 55%, transparent);
@@ -311,14 +316,16 @@ export function CalendarClient() {
                     }
                 `}</style>
               <FullCalendar
-                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, rrulePlugin]}
+                ref={calendarRef as any}
+                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                 key={initialView}
                 initialView={initialView}
                 headerToolbar={{ left: "prev,next today", center: "title", right: "timeGridWeek,timeGridDay" }}
                 selectable={false}
-                editable={true}
+                editable={false}
+                eventStartEditable={false}
+                eventDurationEditable={false}
                 eventClick={onEventClick}
-                eventDrop={onDrop}
                 height="100%"
                 expandRows={true}
                 slotMinTime="08:00:00"
@@ -327,11 +334,11 @@ export function CalendarClient() {
                 nowIndicator
                 eventContent={renderEventContent}
                 eventClassNames={eventClassNames}
-                events={events as any}
+                events={fetchEvents as any}
+                loading={(isLoading) => setLoading(isLoading)}
                 dayHeaderFormat={{ weekday: 'short', day: 'numeric' }}
               />
-            </div>
-          )}
+          </div>
         </CardContent>
       </Card>
 
@@ -367,6 +374,26 @@ export function CalendarClient() {
                 <option value="lab">Lab</option>
               </Select>
             </div>
+
+            {/* Day (recurring only) */}
+            {selected?.extendedProps.isRecurring ? (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-foreground/80">Day</label>
+                <Select
+                  value={editDow}
+                  onChange={(e) => setEditDow(e.target.value as any)}
+                  className="bg-background/40 border-foreground/15 text-foreground focus:ring-accent/40"
+                >
+                  <option value="SA">Saturday</option>
+                  <option value="SU">Sunday</option>
+                  <option value="MO">Monday</option>
+                  <option value="TU">Tuesday</option>
+                  <option value="WE">Wednesday</option>
+                  <option value="TH">Thursday</option>
+                  <option value="FR">Friday</option>
+                </Select>
+              </div>
+            ) : null}
 
             {/* Time */}
             <div className="grid grid-cols-2 gap-2">

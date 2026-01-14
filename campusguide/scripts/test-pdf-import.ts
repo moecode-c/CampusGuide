@@ -1,5 +1,6 @@
 
 try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const pdf = require("pdf-parse");
     console.log("PDF Parse required successfully:", typeof pdf);
 } catch (e) {

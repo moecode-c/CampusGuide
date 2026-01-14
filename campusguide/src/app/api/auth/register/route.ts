@@ -7,7 +7,12 @@ import { enforceRateLimit } from "@/server/security/rateLimit";
 const schema = z.object({
   name: z.string().min(2).max(60).trim(),
   email: z.string().email().max(320).transform((v) => v.toLowerCase()),
-  password: z.string().min(8).max(200),
+  password: z
+    .string()
+    .min(8)
+    .max(200)
+    .regex(/[A-Z]/, "Password must include at least 1 uppercase letter")
+    .regex(/[0-9]/, "Password must include at least 1 number"),
   academicYear: z.number().int().min(1).max(4),
 });
 
@@ -19,7 +24,8 @@ export async function POST(req: Request) {
   const json = await req.json().catch(() => null);
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
-    return new Response(JSON.stringify({ error: "Invalid input" }), {
+    const message = parsed.error.issues?.[0]?.message ?? "Invalid input";
+    return new Response(JSON.stringify({ error: message }), {
       status: 400,
       headers: { "content-type": "application/json" },
     });

@@ -31,7 +31,7 @@ export async function GET(req: Request) {
 
   await connectToDatabase();
   const items = await Resource.find({}).sort({ createdAt: -1 }).lean();
-  return jsonWithEtag(req, { items }, { cacheControl: "private, max-age=0, must-revalidate" });
+  return jsonWithEtag(req, { items }, { cacheControl: "private, max-age=30, stale-while-revalidate=300" });
 }
 
 export async function POST(req: Request) {

@@ -46,7 +46,8 @@ export async function proxy(req: NextRequest) {
   }
 
   if (pathname.startsWith("/api/student")) {
-    if ((token as any).role !== "student") {
+    // Admins should be able to use student APIs as well (admin is a superuser).
+    if ((token as any).role !== "student" && (token as any).role !== "admin") {
       return new NextResponse(JSON.stringify({ error: "Forbidden" }), {
         status: 403,
         headers: { "content-type": "application/json" },

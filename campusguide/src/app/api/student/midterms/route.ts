@@ -33,7 +33,7 @@ export async function GET(req: Request) {
     .select({ subject: 1, midtermMark: 1, creditHours: 1 })
     .lean();
 
-  return jsonWithEtag(req, { items }, { cacheControl: "private, max-age=0, must-revalidate" });
+  return jsonWithEtag(req, { items }, { cacheControl: "private, max-age=30, stale-while-revalidate=300" });
 }
 
 export async function PUT(req: Request) {

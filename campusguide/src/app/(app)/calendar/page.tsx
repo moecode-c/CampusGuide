@@ -11,9 +11,11 @@ const CalendarClient = dynamic(
 );
 
 export default function CalendarPage() {
-  // We force a refresh of the key to reload calendar data after an update
-  const [key, setKey] = React.useState(0);
   const [clearing, setClearing] = React.useState(false);
+
+  function refetchCalendar() {
+    window.dispatchEvent(new Event("cg:calendar:refetch"));
+  }
 
   async function clearLectures() {
     if (!confirm("Clear all lectures from your calendar? This cannot be undone.")) return;
@@ -25,7 +27,7 @@ export default function CalendarPage() {
       alert(j.error ?? "Failed to clear lectures");
       return;
     }
-    setKey((k) => k + 1);
+    refetchCalendar();
   }
 
   return (
@@ -39,12 +41,12 @@ export default function CalendarPage() {
           <Button className="w-full sm:w-auto" variant="danger" disabled={clearing} onClick={clearLectures}>
             {clearing ? "Clearing…" : "Clear Lectures"}
           </Button>
-          <ScheduleManager onUpdate={() => setKey(k => k + 1)} />
+          <ScheduleManager onUpdate={refetchCalendar} />
         </div>
       </div>
 
       <div className="pt-4">
-        <CalendarClient key={key} />
+        <CalendarClient />
       </div>
     </div>
   );

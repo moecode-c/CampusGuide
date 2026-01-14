@@ -19,9 +19,23 @@ export function RegisterClient() {
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
 
+  function validatePassword(pw: string) {
+    if (pw.length < 8) return "Password must be at least 8 characters";
+    if (!/[A-Z]/.test(pw)) return "Password must include at least 1 uppercase letter";
+    if (!/[0-9]/.test(pw)) return "Password must include at least 1 number";
+    return null;
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    const pwError = validatePassword(password);
+    if (pwError) {
+      setError(pwError);
+      return;
+    }
+
     setLoading(true);
     const res = await fetch("/api/auth/register", {
       method: "POST",
@@ -66,7 +80,7 @@ export function RegisterClient() {
               <div className="space-y-1">
                 <label className="text-sm font-semibold">Password</label>
                 <Input value={password} onChange={(e) => setPassword(e.target.value)} type="password" required />
-                <p className="text-xs text-foreground/60">Minimum 8 characters.</p>
+                <p className="text-xs text-foreground/60">8+ chars, 1 uppercase letter, 1 number.</p>
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-semibold">Academic year</label>

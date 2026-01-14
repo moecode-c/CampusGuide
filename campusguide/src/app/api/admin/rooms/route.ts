@@ -36,7 +36,7 @@ export async function GET(req: Request) {
     x: r.x,
     y: r.y,
   }));
-  return jsonWithEtag(req, { items: normalized }, { cacheControl: "private, max-age=0, must-revalidate" });
+  return jsonWithEtag(req, { items: normalized }, { cacheControl: "private, max-age=10, stale-while-revalidate=60" });
 }
 
 export async function POST(req: Request) {

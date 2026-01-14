@@ -54,6 +54,7 @@ export function ScheduleManager({ onUpdate }: { onUpdate: () => void }) {
         if (res.ok) {
             setMsg({ type: "success", text: "Class added successfully!" });
             onUpdate();
+            window.dispatchEvent(new Event("cg:calendar:refetch"));
             setTitle("");
             setProf("");
             setRoom("");

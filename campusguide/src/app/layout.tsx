@@ -1,14 +1,21 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Sora } from "next/font/google";
+import { JetBrains_Mono, Oxanium, Press_Start_2P } from "next/font/google";
 import "./globals.css";
 import { AppSessionProvider } from "@/components/SessionProvider";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import { CursorGlow } from "@/components/CursorGlow";
 
-const geistSans = Sora({
+const geistSans = Oxanium({
   variable: "--font-geist-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+});
+
+const geistDisplay = Press_Start_2P({
+  variable: "--font-geist-display",
+  subsets: ["latin"],
+  weight: ["400"],
 });
 
 const geistMono = JetBrains_Mono({
@@ -20,6 +27,9 @@ const geistMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "CampusGuide",
   description: "Student platform: GPA, attendance, schedule, resources, and campus map.",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export const viewport: Metadata["viewport"] = {
@@ -34,7 +44,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark scroll-smooth">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${geistSans.variable} ${geistDisplay.variable} ${geistMono.variable} antialiased`}>
+        <CursorGlow />
         <AppSessionProvider>
           <div className="min-h-screen bg-background text-foreground">
             <div className="flex min-h-screen flex-col">

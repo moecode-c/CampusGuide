@@ -26,6 +26,11 @@ export default async function Home() {
               Your student hub for GPA tools, attendance tracking, a calendar you can actually use, and an
               interactive campus map that can highlight where your lectures are.
             </p>
+            <p className="max-w-prose text-sm text-foreground/70">
+              How it works: create an account, manage your schedule and calendar, track attendance, use GPA tools, and
+              open the campus map to quickly find rooms. Admins publish resources (PDF links, summaries, and videos), and
+              students browse them instantly.
+            </p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -37,6 +42,16 @@ export default async function Home() {
                 Sign in
               </Button>
             </Link>
+            <a
+              href="https://moeportfoliov2.vercel.app"
+              target="_blank"
+              rel="noreferrer"
+              className="w-full sm:w-auto"
+            >
+              <Button variant="outline" className="w-full">
+                View portfolio
+              </Button>
+            </a>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">

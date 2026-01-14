@@ -41,6 +41,7 @@ export function MapClient() {
   const [importing, setImporting] = React.useState(false);
   const [importMsg, setImportMsg] = React.useState<string | null>(null);
   const [mapImgError, setMapImgError] = React.useState(false);
+  const [mapSrc, setMapSrc] = React.useState("/campus-map-v2.png");
 
   const transformRef = React.useRef<ReactZoomPanPinchRef | null>(null);
 
@@ -355,20 +356,28 @@ export function MapClient() {
                       <div ref={mapImageRef} className="relative w-full aspect-square bg-muted/20">
                         {!mapImgError ? (
                           <Image
-                            src="/campus-map-v2.png"
+                            src={mapSrc}
                             alt="Campus map"
                             fill
                             priority
-                            onError={() => setMapImgError(true)}
+                            onError={() => {
+                              // Try fallback if v2 is missing, otherwise show placeholder.
+                              if (mapSrc === "/campus-map-v2.png") {
+                                setMapSrc("/campus-map.png");
+                                return;
+                              }
+                              setMapImgError(true);
+                            }}
                             className="object-contain select-none"
-                            sizes="(max-width: 768px) 100vw, 600px"
+                            sizes="100vw"
+                            quality={75}
                           />
                         ) : (
                           <div className="grid aspect-square w-full place-items-center bg-panel p-8 text-center">
                             <div>
                               <p className="text-sm font-extrabold">Map image not found</p>
                               <p className="mt-1 text-xs text-foreground/70">
-                                Add your campus map image at <span className="font-semibold">public/campus-map.png</span>.
+                                Add your campus map image at <span className="font-semibold">public/campus-map-v2.png</span> (or <span className="font-semibold">public/campus-map.png</span>).
                               </p>
                             </div>
                           </div>
@@ -405,8 +414,8 @@ export function MapClient() {
                               </div>
 
                               {/* Tooltip - positioned below the pin */}
-                              <div className="absolute top-4 flex w-max max-w-50 flex-col items-center">
-                                <div className="mt-2 rounded-xl bg-nav px-3 py-2 text-xs font-semibold text-white shadow-lg">
+                              <div className="absolute -top-3 z-20 flex w-max max-w-50 -translate-y-full flex-col items-center">
+                                <div className="rounded-xl bg-nav px-3 py-2 text-xs font-semibold text-white shadow-lg">
                                   {selected.roomCode} • {selected.building} • Floor {selected.floor}
                                 </div>
                               </div>

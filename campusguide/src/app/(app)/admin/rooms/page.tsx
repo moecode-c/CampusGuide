@@ -24,7 +24,12 @@ export default function AdminRoomsPage() {
 
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [mapImgError, setMapImgError] = React.useState(false);
+  const [mapSrc, setMapSrc] = React.useState("/campus-map-v2.png");
   const mapRef = React.useRef<HTMLDivElement | null>(null);
+
+  const [listQuery, setListQuery] = React.useState("");
+  const [listBuilding, setListBuilding] = React.useState("");
+  const [listFloor, setListFloor] = React.useState("");
 
   const [roomCode, setRoomCode] = React.useState("");
   const [building, setBuilding] = React.useState("");
@@ -73,6 +78,35 @@ export default function AdminRoomsPage() {
   React.useEffect(() => {
     load();
   }, []);
+
+  const buildingOptions = React.useMemo(() => {
+    const set = new Set(items.map((r) => String(r.building ?? "").trim().toUpperCase()).filter(Boolean));
+    return Array.from(set).sort();
+  }, [items]);
+
+  const floorOptions = React.useMemo(() => {
+    const set = new Set(items.map((r) => r.floor).filter((n) => Number.isFinite(n)));
+    return Array.from(set).sort((a, b) => a - b);
+  }, [items]);
+
+  const filteredItems = React.useMemo(() => {
+    const q = listQuery.trim().toUpperCase();
+    const b = listBuilding.trim().toUpperCase();
+    const f = listFloor.trim();
+    const floorNum = f ? Number(f) : null;
+
+    return items.filter((r) => {
+      const roomCode = String(r.roomCode ?? "").toUpperCase();
+      const building = String(r.building ?? "").toUpperCase();
+      const floorStr = String(r.floor ?? "");
+
+      const matchesQuery = !q || roomCode.includes(q) || building.includes(q) || floorStr === q;
+      const matchesBuilding = !b || building === b;
+      const matchesFloor = floorNum == null || r.floor === floorNum;
+
+      return matchesQuery && matchesBuilding && matchesFloor;
+    });
+  }, [items, listBuilding, listFloor, listQuery]);
 
   async function create() {
     setError(null);
@@ -222,17 +256,24 @@ export default function AdminRoomsPage() {
                 >
                   {!mapImgError ? (
                     <Image
-                      src="/campus-map-v2.png"
+                      src={mapSrc}
                       alt="Campus map"
                       fill
-                      onError={() => setMapImgError(true)}
+                      onError={() => {
+                        if (mapSrc === "/campus-map-v2.png") {
+                          setMapSrc("/campus-map.png");
+                          return;
+                        }
+                        setMapImgError(true);
+                      }}
                       className="object-contain"
                       sizes="(max-width: 1024px) 90vw, 420px"
+                      quality={75}
                       priority
                     />
                   ) : (
                     <div className="grid h-full w-full place-items-center p-6 text-center">
-                      <p className="text-xs text-foreground/70">Missing public/campus-map.png</p>
+                      <p className="text-xs text-foreground/70">Add public/campus-map-v2.png (or public/campus-map.png)</p>
                     </div>
                   )}
 
@@ -268,7 +309,7 @@ export default function AdminRoomsPage() {
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Rooms list</CardTitle>
-            <CardDescription>Students can search by room code or building.</CardDescription>
+            <CardDescription>Search rooms by code (name), building, or floor.</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -277,7 +318,49 @@ export default function AdminRoomsPage() {
               <p className="text-sm text-foreground/70">No rooms yet.</p>
             ) : (
               <div className="space-y-2">
-                {items.map((r) => (
+                <div className="grid gap-2 pb-2 sm:grid-cols-3">
+                  <div className="sm:col-span-2">
+                    <label className="text-xs font-semibold text-foreground/70">Search</label>
+                    <Input
+                      className="mt-1"
+                      value={listQuery}
+                      onChange={(e) => setListQuery(e.target.value)}
+                      placeholder="e.g. N3, MAIN, floor 2"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-foreground/70">Building</label>
+                    <select
+                      className="mt-1 h-10 w-full rounded-xl border border-foreground/12 bg-panel/30 px-3 text-sm font-semibold text-foreground/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                      value={listBuilding}
+                      onChange={(e) => setListBuilding(e.target.value)}
+                    >
+                      <option value="">All</option>
+                      {buildingOptions.map((b) => (
+                        <option key={b} value={b}>
+                          {b}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-foreground/70">Floor</label>
+                    <select
+                      className="mt-1 h-10 w-full rounded-xl border border-foreground/12 bg-panel/30 px-3 text-sm font-semibold text-foreground/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                      value={listFloor}
+                      onChange={(e) => setListFloor(e.target.value)}
+                    >
+                      <option value="">All</option>
+                      {floorOptions.map((f) => (
+                        <option key={f} value={String(f)}>
+                          Floor {f}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {filteredItems.map((r) => (
                   <div
                     key={r._id}
                     className="flex w-full items-center justify-between rounded-2xl bg-background p-4 text-left transition hover:bg-background/80"
@@ -324,6 +407,9 @@ export default function AdminRoomsPage() {
                     </div>
                   </div>
                 ))}
+                {filteredItems.length === 0 ? (
+                  <p className="text-sm text-foreground/70">No matches.</p>
+                ) : null}
               </div>
             )}
             <div className="mt-3">

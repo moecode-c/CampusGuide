@@ -23,6 +23,17 @@ export default function AdminResourcesPage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
+  const typeLabel = React.useCallback((t: Resource["type"]) => {
+    switch (t) {
+      case "pdf":
+        return "PDF Link";
+      case "summary":
+        return "Summary Link";
+      case "video":
+        return "Video Link";
+    }
+  }, []);
+
   const [title, setTitle] = React.useState("");
   const [subject, setSubject] = React.useState("");
   const [academicYear, setAcademicYear] = React.useState("1");
@@ -161,9 +172,9 @@ export default function AdminResourcesPage() {
                 <div className="space-y-1">
                   <label className="text-sm font-semibold">Type</label>
                   <Select value={type} onChange={(e) => setType(e.target.value as any)}>
-                    <option value="pdf">Past exam (PDF Link)</option>
-                    <option value="summary">Summary (Link)</option>
-                    <option value="video">Video (YouTube/Link)</option>
+                    <option value="pdf">PDF Link</option>
+                    <option value="summary">Summary Link</option>
+                    <option value="video">Video Link</option>
                   </Select>
                 </div>
               </div>
@@ -212,7 +223,7 @@ export default function AdminResourcesPage() {
                     <div className="min-w-0 flex-1 mr-4">
                       <p className="truncate text-sm font-extrabold">{it.title}</p>
                       <p className="text-xs text-foreground/70">
-                        {it.subject} • Year {it.academicYear} • <span className="font-semibold text-primary">{it.type}</span>
+                        {it.subject} • Year {it.academicYear} • <span className="font-semibold text-primary">{typeLabel(it.type)}</span>
                       </p>
                       <a href={it.externalUrl} target="_blank" rel="noreferrer" className="truncate text-[11px] text-foreground/50 hover:underline block mt-0.5">
                         {it.externalUrl}

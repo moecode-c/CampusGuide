@@ -11,13 +11,13 @@ type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-primary text-white hover:bg-primary/90 focus-visible:ring-primary/40 shadow-sm",
+    "bg-primary text-white hover:bg-primary/90 focus-visible:ring-primary/40 shadow-sm hover:shadow-lg hover:shadow-primary/25",
   secondary:
-    "bg-secondary text-white hover:bg-secondary/90 focus-visible:ring-secondary/40 shadow-sm",
+    "bg-secondary text-white hover:bg-secondary/90 focus-visible:ring-secondary/40 shadow-sm hover:shadow-lg hover:shadow-secondary/20",
   ghost:
-    "bg-transparent hover:bg-panel/60 text-foreground focus-visible:ring-accent/40",
+    "bg-transparent hover:bg-panel/60 text-foreground focus-visible:ring-accent/40 hover:shadow-sm hover:shadow-primary/10",
   danger:
-    "bg-risk text-white hover:bg-risk/90 focus-visible:ring-risk/40 shadow-sm",
+    "bg-risk text-white hover:bg-risk/90 focus-visible:ring-risk/40 shadow-sm hover:shadow-lg hover:shadow-risk/25",
   outline:
     "border border-input bg-transparent hover:bg-accent hover:text-accent-foreground",
 };

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, Library, Search } from "lucide-react";
+import { ExternalLink, FileText, Library, PlayCircle, ScrollText, Search } from "lucide-react";
 
 type Item = {
   id: string;
@@ -28,7 +28,7 @@ export default function ResourcesPage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
-  async function load() {
+  const load = React.useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
     if (q.trim()) params.set("q", q.trim());
@@ -46,11 +46,28 @@ export default function ResourcesPage() {
     setItems((j?.items ?? []) as Item[]);
     setError(null);
     setLoading(false);
-  }
+  }, [academicYear, q, subject, type]);
 
+  // Auto-search: debounce typing, instant on select changes.
   React.useEffect(() => {
-    load();
-  }, []);
+    const handle = window.setTimeout(() => {
+      load();
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [q, subject, academicYear, type, load]);
+
+  // Initial load is handled by the auto-search effect.
+
+  function typeMeta(t: Item["type"]) {
+    switch (t) {
+      case "video":
+        return { label: "Video", icon: <PlayCircle className="h-4 w-4" /> };
+      case "pdf":
+        return { label: "PDF", icon: <FileText className="h-4 w-4" /> };
+      case "summary":
+        return { label: "Summary", icon: <ScrollText className="h-4 w-4" /> };
+    }
+  }
 
   return (
     <div className="space-y-2">
@@ -96,7 +113,7 @@ export default function ResourcesPage() {
               <Select className="mt-1" value={type} onChange={(e) => setType(e.target.value)}>
                 <option value="">All</option>
                 <option value="video">Video</option>
-                <option value="pdf">Past exam PDF</option>
+                <option value="pdf">PDF</option>
                 <option value="summary">Summary</option>
               </Select>
             </div>
@@ -117,7 +134,12 @@ export default function ResourcesPage() {
                       <p className="truncate text-sm font-extrabold">{it.title}</p>
                       <p className="text-xs text-foreground/70">{it.subject} • Year {it.academicYear}</p>
                     </div>
-                    <Badge tone="neutral">{it.type}</Badge>
+                    <Badge tone="neutral">
+                      <span className="inline-flex items-center gap-1.5">
+                        {typeMeta(it.type).icon}
+                        {typeMeta(it.type).label}
+                      </span>
+                    </Badge>
                   </div>
 
                   <div className="mt-3 flex flex-wrap gap-2">

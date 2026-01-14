@@ -32,9 +32,7 @@ async function main() {
     }
 
     console.log("Raw updated doc keys:", Object.keys(updated));
-    // @ts-ignore
     console.log("Type of _id:", typeof updated._id);
-    // @ts-ignore
     console.log("Constructor of _id:", updated._id?.constructor.name);
 
     const jsonString = JSON.stringify({ ok: true, item: updated });

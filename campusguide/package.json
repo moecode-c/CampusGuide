@@ -3,11 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbo",
+    "dev:turbo": "next dev --turbo",
+    "dev:webpack": "next dev --webpack --disable-source-maps",
+    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true});\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "seed:rooms": "tsx scripts/seed-rooms.ts",
+    "seed:rooms:zones": "tsx scripts/seed-rooms-zones.ts",
     "create:admin": "tsx scripts/create-admin.ts"
   },
   "dependencies": {

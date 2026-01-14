@@ -3,7 +3,6 @@ import { connectToDatabase } from "@/server/db";
 import { requireSession } from "@/server/security/requireSession";
 import { enforceRateLimit } from "@/server/security/rateLimit";
 import { Event, EventTypes } from "@/server/models/Event";
-import { getSemesterTemplateForYear } from "@/server/data/semesterTemplates";
 
 const rowSchema = z.object({
   title: z.string().min(1).max(120).trim(),
@@ -65,31 +64,14 @@ export async function POST(req: Request) {
     });
   }
 
-  let tpl = await getSemesterTemplateForYear(session.user.academicYear);
-
-  // Fallback for demo/dev if no template exists
-  if (!tpl) {
-    const now = new Date();
-    const fourMonths = new Date();
-    fourMonths.setMonth(now.getMonth() + 4);
-
-    tpl = {
-      id: "fallback",
-      academicYear: session.user.academicYear,
-      startDate: now,
-      endDate: fourMonths,
-      holidays: []
-    } as any;
-  }
-
-  const termStart = new Date(tpl.startDate);
-  const termEnd = new Date(tpl.endDate);
-  const until = termEnd.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  // Year-round schedule: don't tie imported events to a semester end date.
+  // We anchor the series to the next matching weekday starting from "now".
+  const baseStart = new Date();
 
   await connectToDatabase();
 
   const docs = parsed.data.rows.map((r) => {
-    const firstDay = nextDateForDow(termStart, r.dayOfWeek);
+    const firstDay = nextDateForDow(baseStart, r.dayOfWeek);
     const start = withTime(firstDay, r.startTime);
     const end = withTime(firstDay, r.endTime);
 
@@ -102,7 +84,7 @@ export async function POST(req: Request) {
       roomCode: r.roomCode || undefined,
       professor: r.professor || undefined,
       isRecurring: true,
-      rrule: `FREQ=WEEKLY;BYDAY=${r.dayOfWeek};UNTIL=${until}`,
+      rrule: `FREQ=WEEKLY;BYDAY=${r.dayOfWeek}`,
     };
   });
 

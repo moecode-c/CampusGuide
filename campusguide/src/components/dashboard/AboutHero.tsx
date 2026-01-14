@@ -1,8 +1,14 @@
 "use client";
 
 import Image from "next/image";
-import Antigravity from "@/components/Antigravity";
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { ExternalLink } from "lucide-react";
+
+const Antigravity = dynamic(() => import("@/components/Antigravity"), {
+  ssr: false,
+});
 
 export function AboutHero() {
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -10,10 +16,55 @@ export function AboutHero() {
   const pointerRafRef = useRef<number | null>(null);
   const pointerPendingRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [pointer, setPointer] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isHovering, setIsHovering] = useState(false);
+
+  const roles = useRef([
+    "FULL-STACK ENGINEER",
+    "SOFTWARE DEVELOPER",
+    "TUTOR-MENTOR-INSTRUCTOR",
+    "RESEARCHER-PROBLEM SOLVER",
+  ]);
+  const [roleIndex, setRoleIndex] = useState(0);
+  const [typed, setTyped] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const avatarStyle = {
+    transform: `perspective(900px) rotateX(${pointer.y * 6}deg) rotateY(${pointer.x * 10}deg) translateZ(0)`,
+  } as const;
 
   useEffect(() => {
     setEventSource(sectionRef.current);
   }, []);
+
+  useEffect(() => {
+    const current = roles.current[roleIndex] ?? "";
+    const doneTyping = typed === current;
+    const doneDeleting = typed.length === 0;
+
+    const baseDelay = deleting ? 28 : 42;
+    const jitter = Math.floor(Math.random() * 18);
+    const delay = doneTyping ? 1100 : doneDeleting && deleting ? 220 : baseDelay + jitter;
+
+    const t = window.setTimeout(() => {
+      if (!deleting) {
+        if (doneTyping) {
+          setDeleting(true);
+          return;
+        }
+        setTyped(current.slice(0, typed.length + 1));
+        return;
+      }
+
+      if (doneDeleting) {
+        setDeleting(false);
+        setRoleIndex((i) => (i + 1) % roles.current.length);
+        return;
+      }
+      setTyped((prev) => prev.slice(0, Math.max(0, prev.length - 1)));
+    }, delay);
+
+    return () => window.clearTimeout(t);
+  }, [deleting, roleIndex, typed]);
 
   function updatePointer(next: { x: number; y: number }) {
     pointerPendingRef.current = next;
@@ -25,6 +76,7 @@ export function AboutHero() {
   }
 
   function onMove(e: React.PointerEvent<HTMLElement>) {
+    if (!isHovering) setIsHovering(true);
     const el = sectionRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -40,12 +92,14 @@ export function AboutHero() {
   }
 
   function onLeave() {
+    setIsHovering(false);
     updatePointer({ x: 0, y: 0 });
   }
 
   return (
     <section
       ref={sectionRef}
+      onPointerEnter={() => setIsHovering(true)}
       onPointerMove={onMove}
       onPointerLeave={onLeave}
       className="relative overflow-hidden rounded-3xl border border-foreground/10 bg-panel/20"
@@ -54,34 +108,74 @@ export function AboutHero() {
         <Antigravity
           eventSource={eventSource}
           pointer={pointer}
-          count={320}
-          particleSize={1.9}
+          count={250}
+          particleSize={1.7}
           waveAmplitude={1.35}
           waveSpeed={0.55}
           ringRadius={9}
           magnetRadius={9}
           rotationSpeed={0.15}
           depthFactor={1}
-          color="#FF9FFC"
+          responsive
+          color="#00bfff"
+          autoAnimate={!isHovering}
         />
       </div>
       <div className="absolute inset-0 bg-background/35 md:bg-background/20" />
 
-      <div className="relative grid min-h-56 grid-cols-1 gap-5 p-5 md:min-h-80 md:grid-cols-[1fr_auto] md:items-center md:gap-8 md:p-10 lg:min-h-96 lg:p-12">
-        <div className="space-y-2">
+      <div className="relative grid min-h-56 grid-cols-1 gap-5 p-5 md:min-h-80 md:grid-cols-[1fr_24rem] md:items-stretch md:gap-8 md:p-10 lg:min-h-96 lg:grid-cols-[1fr_30rem] lg:p-12">
+        <div className="space-y-3">
           <div className="text-sm font-semibold text-foreground/70 md:text-base">About me</div>
           <h2 className="text-2xl font-extrabold tracking-tight md:text-4xl lg:text-5xl">Mohammed Essam El Din</h2>
-          <p className="text-sm text-foreground/70 md:text-base">
-            Software Developer • (Placeholder bio — you’ll provide the final text later)
+          <div className="inline-flex items-center gap-2 text-xs font-semibold tracking-[0.22em] text-primary/90 md:text-sm">
+            <span className="font-mono">{typed}</span>
+            <span className="inline-block h-4 w-0.5 bg-primary/80 animate-pulse" aria-hidden />
+          </div>
+          <p className="text-base leading-relaxed text-foreground/80 md:text-lg">
+            I’m the creator of CampusGuide, a platform built to help students navigate and simplify their campus life.
+            As a full-stack software engineer, I designed CampusGuide to provide clear maps, essential resources, and
+            practical tools that support students throughout their academic journey.
           </p>
-          <div className="text-xs font-semibold text-foreground/60 md:text-sm">
-            Placeholder tags: Next.js • Full-stack • UI/UX • Databases
+
+          <div className="flex flex-col gap-2 pt-2 sm:flex-row">
+            <a href="https://moeportfoliov2.vercel.app" target="_blank" rel="noreferrer" className="inline-flex">
+              <Button variant="secondary" className="h-10">
+                <ExternalLink className="h-4 w-4" />
+                Portfolio
+              </Button>
+            </a>
           </div>
         </div>
 
-        <div className="h-24 w-24 justify-self-start overflow-hidden rounded-3xl border border-foreground/10 bg-background md:h-44 md:w-44 md:justify-self-end lg:h-52 lg:w-52">
-          <Image src="/avatar-placeholder.svg" alt="Profile photo" width={256} height={256} className="h-full w-full object-cover" priority />
-        </div>
+        <a
+          href="https://moeportfoliov2.vercel.app"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Open portfolio"
+          className="group relative h-60 w-full justify-self-start overflow-hidden rounded-3xl border border-foreground/10 bg-background/40 transition-[border-color,box-shadow] duration-200 ease-out hover:border-foreground/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 md:h-full md:justify-self-end"
+        >
+          <div
+            className="absolute inset-0"
+            style={avatarStyle}
+          >
+            <div
+              className="pointer-events-none absolute -inset-1 opacity-0 blur-xl transition-opacity duration-300 group-hover:opacity-100"
+              style={{
+                background:
+                  "radial-gradient(circle at 30% 30%, rgba(0,255,153,0.30), transparent 55%), radial-gradient(circle at 70% 70%, rgba(0,191,255,0.35), transparent 55%)",
+              }}
+            />
+            <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ background: "radial-gradient(circle at 60% 40%, rgba(255,255,255,0.08), transparent 45%)" }} />
+            <Image
+              src="/retromo1nobg.png"
+              alt="Retro character"
+              fill
+              sizes="(max-width: 768px) 92vw, 30rem"
+              className="relative object-contain p-2 drop-shadow-[0_14px_55px_rgba(0,0,0,0.65)] transition-transform duration-300 ease-out group-hover:scale-[1.10] md:p-3"
+              priority
+            />
+          </div>
+        </a>
       </div>
     </section>
   );

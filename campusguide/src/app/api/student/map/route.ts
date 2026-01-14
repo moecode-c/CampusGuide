@@ -3,10 +3,36 @@ import { requireSession } from "@/server/security/requireSession";
 import { getRoomsCached } from "@/server/data/rooms";
 import { connectToDatabase } from "@/server/db";
 import { Event, EventTypes } from "@/server/models/Event";
-import { getSemesterTemplateForYear } from "@/server/data/semesterTemplates";
-import { RRule } from "rrule";
-import { computeExdatesForRule } from "@/server/calendar/exdates";
 import { jsonWithEtag } from "@/server/httpCache";
+
+function dayCodeToNumber(code: string) {
+  const map: Record<string, number> = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 };
+  return map[code] ?? null;
+}
+
+function parseByDays(rrule: string | null | undefined, fallbackStart: Date) {
+  const body = String(rrule ?? "").trim().toUpperCase().replace(/^RRULE:/, "");
+  const m = body.match(/(^|;)BYDAY=([A-Z,]+)/);
+  const codes = m?.[2]?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
+  const dows = codes.map(dayCodeToNumber).filter((n): n is number => typeof n === "number");
+  if (dows.length) return Array.from(new Set(dows));
+  return [fallbackStart.getDay()];
+}
+
+function dateOnlyLocal(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function maxDate(a: Date, b: Date) {
+  return a.getTime() >= b.getTime() ? a : b;
+}
+
+function nextDowOnOrAfterLocal(fromDate: Date, dow: number) {
+  const d = dateOnlyLocal(fromDate);
+  const delta = (dow - d.getDay() + 7) % 7;
+  d.setDate(d.getDate() + delta);
+  return d;
+}
 
 export async function GET(req: Request) {
   const limited = await enforceRateLimit(req.headers, "student:map:get");
@@ -25,9 +51,6 @@ export async function GET(req: Request) {
   await connectToDatabase();
   const now = new Date();
   const in7 = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-  const tpl = await getSemesterTemplateForYear(session.user.academicYear);
-  const excluded = (tpl?.excludedRanges ?? []).map((r: any) => ({ start: new Date(r.start), end: new Date(r.end) }));
 
   const oneOff = await Event.find({
     userId: session.user.id,
@@ -68,25 +91,37 @@ export async function GET(req: Request) {
 
   const expanded: Array<{ title: string; type: string; start: string; end: string; roomCode: string }> = [];
   for (const e of recurring as any[]) {
-    const dtstart = new Date(e.start);
-    const dtend = new Date(e.end);
-    const durationMs = dtend.getTime() - dtstart.getTime();
+    const startBase = new Date(e.start);
+    const endBase = new Date(e.end);
+    const durationMs = endBase.getTime() - startBase.getTime();
 
-    try {
-      const parsed = RRule.fromString(String(e.rrule));
-      const rule = new RRule({ ...parsed.origOptions, dtstart });
-      const exdate = computeExdatesForRule({ rrule: rule, dtstart, excludedRanges: excluded });
-      const exSet = new Set((exdate ?? []).map((d: any) => new Date(d).toISOString()));
+    const bydays = parseByDays(e.rrule, startBase);
+    const hh = startBase.getHours();
+    const mm = startBase.getMinutes();
 
-      const starts = rule.between(now, in7, true);
-      for (const s of starts) {
-        const startIso = s.toISOString();
-        if (exSet.has(startIso)) continue;
-        const endIso = new Date(s.getTime() + durationMs).toISOString();
-        expanded.push({ title: e.title, type: e.type, start: startIso, end: endIso, roomCode: String(e.roomCode) });
+    const seriesStartDay = dateOnlyLocal(startBase);
+    const searchFrom = maxDate(seriesStartDay, dateOnlyLocal(now));
+
+    for (const dow of bydays) {
+      let day = nextDowOnOrAfterLocal(searchFrom, dow);
+      while (day.getTime() < in7.getTime()) {
+        const startOcc = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hh, mm, 0, 0);
+        if (startOcc.getTime() < startBase.getTime()) {
+          day.setDate(day.getDate() + 7);
+          continue;
+        }
+        const endOcc = new Date(startOcc.getTime() + durationMs);
+        if (endOcc > now && startOcc < in7) {
+          expanded.push({
+            title: e.title,
+            type: e.type,
+            start: startOcc.toISOString(),
+            end: endOcc.toISOString(),
+            roomCode: String(e.roomCode),
+          });
+        }
+        day.setDate(day.getDate() + 7);
       }
-    } catch {
-      // Ignore malformed RRULEs; they can be corrected in Calendar.
     }
   }
 
@@ -101,6 +136,7 @@ export async function GET(req: Request) {
       upcoming,
       scheduleRoomCodes,
     },
-    { cacheControl: "private, max-age=0, must-revalidate" }
+    // Safe to cache briefly in the browser; varies by session cookie.
+    { cacheControl: "private, max-age=30, stale-while-revalidate=300" }
   );
 }

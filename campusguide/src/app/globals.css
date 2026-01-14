@@ -1,19 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  /* Light theme (kept clean, still red-accented) */
-  --background: #ffffff;
-  --foreground: #1a0f12;
+  /* Default theme: DARK cyberpunk (blue + green neon) */
+  --background: #01051a;
+  --foreground: #d6ffe6;
 
-  --nav: #14070a;
-  --panel: #f6f1f2;
+  --nav: rgba(2, 8, 32, 0.96);
+  --panel: rgba(6, 18, 40, 0.92);
 
-  --primary: #8b0a18;
-  --secondary: #b0122a;
-  --accent: #3a0c14;
-  --success: #0aa77b;
-  --warning: #d49a00;
-  --risk: #c1122f;
+  --primary: #0b9860;
+  --secondary: #00bfff;
+  --accent: #009966;
+  --success: #1bb778;
+  --warning: #ffe16b;
+  --risk: #ff2a6d;
+
+  --bg0: #010a1a;
+  --bg1: #021a11;
+  --glowA: rgba(0, 255, 153, 0.38);
+  --glowB: rgba(0, 191, 255, 0.28);
+  --glowC: rgba(0, 102, 66, 0.22);
 }
 
 @theme inline {
@@ -28,29 +34,148 @@
   --color-warning: var(--warning);
   --color-risk: var(--risk);
   --font-sans: var(--font-geist-sans);
+  --font-display: var(--font-geist-display);
   --font-mono: var(--font-geist-mono);
 }
 
-/* Dark theme (default) */
+/* Dark theme (kept for compatibility) */
 .dark {
-  --background: #070406;
-  --foreground: #f4eef0;
+  --background: #01051a;
+  --foreground: #d6ffe6;
 
-  --nav: #0d0507;
-  --panel: #12070b;
+  --nav: rgba(2, 8, 32, 0.96);
+  --panel: rgba(6, 18, 40, 0.92);
 
-  /* Brighter neon accents while keeping the same palette family */
-  --primary: #ff2148;
-  --secondary: #b0122a;
-  --accent: #6b0f20;
-  --success: #00e0a4;
-  --warning: #ffd24a;
-  --risk: #ff1f4d;
+  --primary: #0dbc76;
+  --secondary: #00bfff;
+  --accent: #009966;
+  --success: #00ff99;
+  --warning: #ffe16b;
+  --risk: #ff2a6d;
+
+  --bg0: #010a1a;
+  --bg1: #021a11;
+  --glowA: rgba(0, 255, 153, 0.38);
+  --glowB: rgba(0, 191, 255, 0.28);
+  --glowC: rgba(0, 102, 66, 0.22);
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
+  background-image:
+    radial-gradient(900px 600px at 10% 10%, var(--glowC), transparent 55%),
+    radial-gradient(900px 600px at 90% 20%, var(--glowA), transparent 55%),
+    radial-gradient(900px 600px at 40% 90%, var(--glowB), transparent 55%),
+    linear-gradient(135deg, var(--bg0), var(--bg1));
+  background-attachment: fixed;
   color: var(--foreground);
+}
+
+/* Headings get a cyberpunk display font */
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-geist-display);
+  letter-spacing: -0.01em;
+}
+
+/* Fix Chrome/Edge autofill forcing light backgrounds */
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--foreground);
+  transition: background-color 9999s ease-out 0s;
+  box-shadow: 0 0 0px 1000px color-mix(in oklab, var(--background) 92%, transparent) inset;
+}
+
+/* Subtle scanlines + cursor glow (interactive). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: calc(var(--cursor-active, 0) * 0.55);
+  transition: opacity 250ms ease;
+  background:
+    radial-gradient(
+      520px circle at var(--cursor-x, 50%) var(--cursor-y, 50%),
+      color-mix(in oklab, var(--secondary) 30%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      680px circle at var(--cursor-x, 50%) var(--cursor-y, 50%),
+      color-mix(in oklab, var(--primary) 20%, transparent),
+      transparent 68%
+    );
+  mix-blend-mode: screen;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.05;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.08) 0px,
+      rgba(255, 255, 255, 0.08) 1px,
+      rgba(0, 0, 0, 0) 3px,
+      rgba(0, 0, 0, 0) 6px
+    );
+}
+
+/* Ensure app content stays above overlays */
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  body {
+    background-size: 130% 130%;
+    animation: neon-shift 18s ease-in-out infinite;
+  }
+}
+
+@keyframes neon-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+::selection {
+  background: color-mix(in oklab, var(--secondary) 35%, transparent);
+}
+
+a,
+button,
+input,
+select,
+textarea {
+  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease,
+    transform 180ms ease, box-shadow 180ms ease;
+}
+
+/* Better mobile text rendering + responsiveness */
+html {
+  text-rendering: geometricPrecision;
+}
+
+@media (max-width: 480px) {
+  h1 {
+    letter-spacing: -0.015em;
+  }
 }
 
 * {
