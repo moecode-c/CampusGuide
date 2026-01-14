@@ -37,7 +37,8 @@ function NavLink({
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
+        "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all duration-200",
+        "hover:-translate-y-0.5 active:translate-y-0",
         active
           ? "bg-primary text-white"
           : "text-foreground/80 hover:bg-panel/60 hover:text-foreground"
@@ -49,12 +50,21 @@ function NavLink({
   );
 }
 
+function loginRedirectHref(targetHref: string) {
+  return `/login?next=${encodeURIComponent(targetHref)}`;
+}
+
 export function Navbar() {
   const { data } = useSession();
   const [openGpa, setOpenGpa] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const pathname = usePathname();
   const authed = Boolean(data?.user);
+
+  const gate = React.useCallback(
+    (targetHref: string) => (authed ? targetHref : loginRedirectHref(targetHref)),
+    [authed]
+  );
 
   React.useEffect(() => {
     setMobileOpen(false);
@@ -92,59 +102,49 @@ export function Navbar() {
         </div>
 
         <nav className="hidden items-center gap-2 lg:flex">
-          {authed ? (
-            <>
-              <NavLink href="/dashboard" icon={<LayoutDashboard className="h-4 w-4" />} label="Dashboard" />
+          <NavLink href={authed ? "/dashboard" : "/"} icon={<LayoutDashboard className="h-4 w-4" />} label={authed ? "Dashboard" : "Home"} />
 
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setOpenGpa((v) => !v)}
-                  onBlur={() => setTimeout(() => setOpenGpa(false), 120)}
-                  className={cn(
-                    "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
-                    "text-foreground/80 hover:bg-panel/60 hover:text-foreground"
-                  )}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setOpenGpa((v) => !v)}
+              onBlur={() => setTimeout(() => setOpenGpa(false), 120)}
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
+                "text-foreground/80 hover:bg-panel/60 hover:text-foreground"
+              )}
+            >
+              <GraduationCap className="h-4 w-4" />
+              GPA
+              <ChevronDown className="h-4 w-4" />
+            </button>
+            {openGpa ? (
+              <div className="absolute right-0 mt-2 w-52 overflow-hidden rounded-2xl border border-foreground/10 bg-nav shadow-lg">
+                <Link
+                  className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-foreground/85 hover:bg-panel/60"
+                  href={gate("/gpa/estimator")}
                 >
                   <GraduationCap className="h-4 w-4" />
-                  GPA
-                  <ChevronDown className="h-4 w-4" />
-                </button>
-                {openGpa ? (
-                  <div className="absolute right-0 mt-2 w-52 overflow-hidden rounded-2xl border border-foreground/10 bg-nav shadow-lg">
-                    <Link
-                      className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-foreground/85 hover:bg-panel/60"
-                      href="/gpa/estimator"
-                    >
-                      <GraduationCap className="h-4 w-4" />
-                      GPA Estimator
-                    </Link>
-                    <Link
-                      className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-foreground/85 hover:bg-panel/60"
-                      href="/gpa/calculator"
-                    >
-                      <GraduationCap className="h-4 w-4" />
-                      GPA Calculator
-                    </Link>
-                  </div>
-                ) : null}
+                  GPA Estimator
+                </Link>
+                <Link
+                  className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-foreground/85 hover:bg-panel/60"
+                  href={gate("/gpa/calculator")}
+                >
+                  <GraduationCap className="h-4 w-4" />
+                  GPA Calculator
+                </Link>
               </div>
+            ) : null}
+          </div>
 
-              <NavLink href="/attendance" icon={<ClipboardCheck className="h-4 w-4" />} label="Attendance" />
-              <NavLink href="/calendar" icon={<CalendarDays className="h-4 w-4" />} label="Calendar" />
-              <NavLink href="/resources" icon={<Library className="h-4 w-4" />} label="Resources" />
-              <NavLink href="/map" icon={<MapPin className="h-4 w-4" />} label="Map" />
-              {data?.user?.role === "admin" ? (
-                <NavLink href="/admin" icon={<Shield className="h-4 w-4" />} label="Admin" />
-              ) : null}
-            </>
-          ) : (
-            <>
-              <NavLink href="/" icon={<LayoutDashboard className="h-4 w-4" />} label="Home" />
-              <NavLink href="/login" icon={<LogIn className="h-4 w-4" />} label="Login" />
-              <NavLink href="/register" icon={<UserPlus className="h-4 w-4" />} label="Register" />
-            </>
-          )}
+          <NavLink href={gate("/attendance")} icon={<ClipboardCheck className="h-4 w-4" />} label="Attendance" />
+          <NavLink href={gate("/calendar")} icon={<CalendarDays className="h-4 w-4" />} label="Calendar" />
+          <NavLink href={gate("/resources")} icon={<Library className="h-4 w-4" />} label="Resources" />
+          <NavLink href={gate("/map")} icon={<MapPin className="h-4 w-4" />} label="Map" />
+          {authed && data?.user?.role === "admin" ? (
+            <NavLink href="/admin" icon={<Shield className="h-4 w-4" />} label="Admin" />
+          ) : null}
         </nav>
 
         <div className="hidden items-center gap-2 lg:flex">
@@ -158,11 +158,7 @@ export function Navbar() {
               </Link>
             </>
           ) : (
-            <Button
-              variant="secondary"
-              className="h-10"
-              onClick={() => signOut({ callbackUrl: "/" })}
-            >
+            <Button variant="secondary" className="h-10" onClick={() => signOut({ callbackUrl: "/" })}>
               <LogOut className="h-4 w-4" />
               Sign out
             </Button>
@@ -202,22 +198,28 @@ export function Navbar() {
             </div>
 
             <div className="flex h-[calc(100dvh-64px)] flex-col gap-2 overflow-auto p-3">
-              {authed ? (
-                <>
-                  <NavLink href="/dashboard" icon={<LayoutDashboard className="h-4 w-4" />} label="Dashboard" />
+              <>
+                <NavLink href={authed ? "/dashboard" : "/"} icon={<LayoutDashboard className="h-4 w-4" />} label={authed ? "Dashboard" : "Home"} />
 
-                  <div className="px-3 pt-2 text-xs font-extrabold uppercase tracking-wide text-foreground/60">GPA</div>
-                  <NavLink href="/gpa/estimator" icon={<GraduationCap className="h-4 w-4" />} label="GPA Estimator" />
-                  <NavLink href="/gpa/calculator" icon={<GraduationCap className="h-4 w-4" />} label="GPA Calculator" />
+                <div className="px-3 pt-2 text-xs font-extrabold uppercase tracking-wide text-foreground/60">GPA</div>
+                <NavLink href={gate("/gpa/estimator")} icon={<GraduationCap className="h-4 w-4" />} label="GPA Estimator" />
+                <NavLink href={gate("/gpa/calculator")} icon={<GraduationCap className="h-4 w-4" />} label="GPA Calculator" />
 
-                  <NavLink href="/attendance" icon={<ClipboardCheck className="h-4 w-4" />} label="Attendance" />
-                  <NavLink href="/calendar" icon={<CalendarDays className="h-4 w-4" />} label="Calendar" />
-                  <NavLink href="/resources" icon={<Library className="h-4 w-4" />} label="Resources" />
-                  <NavLink href="/map" icon={<MapPin className="h-4 w-4" />} label="Map" />
-                  {data?.user?.role === "admin" ? (
-                    <NavLink href="/admin" icon={<Shield className="h-4 w-4" />} label="Admin" />
-                  ) : null}
+                <NavLink href={gate("/attendance")} icon={<ClipboardCheck className="h-4 w-4" />} label="Attendance" />
+                <NavLink href={gate("/calendar")} icon={<CalendarDays className="h-4 w-4" />} label="Calendar" />
+                <NavLink href={gate("/resources")} icon={<Library className="h-4 w-4" />} label="Resources" />
+                <NavLink href={gate("/map")} icon={<MapPin className="h-4 w-4" />} label="Map" />
+                {authed && data?.user?.role === "admin" ? (
+                  <NavLink href="/admin" icon={<Shield className="h-4 w-4" />} label="Admin" />
+                ) : null}
 
+                {!authed ? (
+                  <>
+                    <div className="mt-2 border-t border-foreground/10 pt-3" />
+                    <NavLink href="/login" icon={<LogIn className="h-4 w-4" />} label="Login" />
+                    <NavLink href="/register" icon={<UserPlus className="h-4 w-4" />} label="Register" />
+                  </>
+                ) : (
                   <div className="mt-2 border-t border-foreground/10 pt-3">
                     <Button
                       type="button"
@@ -229,14 +231,8 @@ export function Navbar() {
                       Sign out
                     </Button>
                   </div>
-                </>
-              ) : (
-                <>
-                  <NavLink href="/" icon={<LayoutDashboard className="h-4 w-4" />} label="Home" />
-                  <NavLink href="/login" icon={<LogIn className="h-4 w-4" />} label="Login" />
-                  <NavLink href="/register" icon={<UserPlus className="h-4 w-4" />} label="Register" />
-                </>
-              )}
+                )}
+              </>
             </div>
           </aside>
         </div>

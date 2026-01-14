@@ -33,7 +33,8 @@ export function Button({ className, variant = "primary", size = "default", ...pr
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors",
+        "inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all duration-200 ease-out",
+        "hover:-translate-y-0.5 active:translate-y-0 active:opacity-90",
         "focus-visible:outline-none focus-visible:ring-4 disabled:opacity-50 disabled:cursor-not-allowed",
         variants[variant],
         sizes[size],

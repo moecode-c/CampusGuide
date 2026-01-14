@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/server/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AboutHero } from "@/components/dashboard/AboutHero";
 
 export default async function Home() {
   const session = await getServerSession(authOptions);
@@ -11,6 +12,10 @@ export default async function Home() {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-10">
+      <div className="pb-10">
+        <AboutHero />
+      </div>
+
       <section className="grid items-center gap-10 lg:grid-cols-2">
         <div className="space-y-6">
           <div className="space-y-3">

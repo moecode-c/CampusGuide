@@ -222,7 +222,7 @@ export default function AdminRoomsPage() {
                 >
                   {!mapImgError ? (
                     <Image
-                      src="/campus-map.png"
+                      src="/campus-map-v2.png"
                       alt="Campus map"
                       fill
                       onError={() => setMapImgError(true)}

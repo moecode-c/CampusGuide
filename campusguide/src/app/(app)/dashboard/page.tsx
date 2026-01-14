@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CalendarDays, GraduationCap, ClipboardCheck, Library, MapPin } from "lucide-react";
 import { AboutHero } from "@/components/dashboard/AboutHero";
+import { ModelViewerSection } from "@/components/home/ModelViewerSection";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -64,6 +65,8 @@ export default async function DashboardPage() {
       <div className="pt-4">
         <AboutHero />
       </div>
+
+      <ModelViewerSection animationName="Experiment" src="/robot-playground.glb" />
 
       <div className="grid gap-6 pt-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {/* Up Next Card - Prominent */}

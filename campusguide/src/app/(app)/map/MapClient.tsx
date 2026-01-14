@@ -355,7 +355,7 @@ export function MapClient() {
                       <div ref={mapImageRef} className="relative w-full aspect-square bg-muted/20">
                         {!mapImgError ? (
                           <Image
-                            src="/campus-map.png"
+                            src="/campus-map-v2.png"
                             alt="Campus map"
                             fill
                             priority
