@@ -63,16 +63,20 @@ export default function AdminRoomsPage() {
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/admin/rooms");
-    const j = await res.json().catch(() => null);
-    if (!res.ok) {
-      setError(j?.error ?? "Failed to load rooms");
+    try {
+      const res = await fetch("/api/admin/rooms");
+      const j = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(j?.error ?? "Failed to load rooms");
+        return;
+      }
+      setItems((j?.items ?? []) as Room[]);
+      setError(null);
+    } catch {
+      setError("Network error. Check your connection and try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-    setItems((j?.items ?? []) as Room[]);
-    setError(null);
-    setLoading(false);
   }
 
   React.useEffect(() => {
@@ -121,24 +125,33 @@ export default function AdminRoomsPage() {
       setError("x/y must be between 0 and 1.");
       return;
     }
-    const res = await fetch("/api/admin/rooms", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        roomCode,
-        building,
-        floor: floorNum,
-        x: xNum,
-        y: yNum,
-      }),
-    });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setError(j.error ?? "Create failed");
+    if (roomCode.trim().length < 2 || building.trim().length < 1) {
+      setError("Room code (2+ chars) and building are required.");
       return;
     }
-    resetForm();
-    await load();
+
+    try {
+      const res = await fetch("/api/admin/rooms", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          roomCode,
+          building,
+          floor: floorNum,
+          x: xNum,
+          y: yNum,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(j.error ?? "Create failed");
+        return;
+      }
+      resetForm();
+      await load();
+    } catch {
+      setError("Network error. The room was not created.");
+    }
   }
 
   async function saveEdit() {
@@ -163,44 +176,40 @@ export default function AdminRoomsPage() {
       y: yNum,
     };
 
-    console.log("[Admin] sending PATCH with payload:", payload);
+    try {
+      const res = await fetch(`/api/admin/rooms/${editingId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const j = await res.json().catch(() => ({}));
 
-    const res = await fetch(`/api/admin/rooms/${editingId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const j = await res.json().catch(() => ({}));
-    console.log("[Admin] Save response:", j);
+      if (!res.ok) {
+        setError(j.error ?? "Save failed");
+        return;
+      }
 
-    if (!res.ok) {
-      setError(j.error ?? "Save failed");
-      return;
+      await load();
+      resetForm();
+    } catch {
+      setError("Network error. Your changes were not saved.");
     }
-
-    // Update local state immediately
-    if (j.item) {
-      console.log("[Admin] Updating local item:", j.item);
-      setItems((prev) => prev.map((p) => (p._id === j.item._id ? j.item : p)));
-    } else {
-      console.warn("[Admin] No item in response, reloading...");
-    }
-
-    // Always reload to ensure consistency with DB, partially redundant but safer while debugging
-    await load();
-
-    resetForm();
   }
 
-  async function del(id: string) {
+  async function del(id: string, code: string) {
+    if (!confirm(`Delete room ${code}? This cannot be undone.`)) return;
     setError(null);
-    const res = await fetch(`/api/admin/rooms/${id}`, { method: "DELETE" });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setError(j.error ?? "Delete failed");
-      return;
+    try {
+      const res = await fetch(`/api/admin/rooms/${id}`, { method: "DELETE" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(j.error ?? "Delete failed");
+        return;
+      }
+      await load();
+    } catch {
+      setError("Network error. Nothing was deleted.");
     }
-    await load();
   }
 
   return (
@@ -398,7 +407,7 @@ export default function AdminRoomsPage() {
                         variant="danger"
                         onClick={(e) => {
                           e.stopPropagation();
-                          del(r._id);
+                          del(r._id, r.roomCode);
                         }}
                       >
                         <Trash2 className="h-4 w-4" />

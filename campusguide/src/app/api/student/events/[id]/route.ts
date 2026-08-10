@@ -182,6 +182,15 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     update.rrule = stripUntilCount(withByDay(found.rrule, byday));
   }
 
+  // An empty string means "clear this field" — storing "" would leave a blank
+  // room code that still matches the map's `roomCode exists` query.
+  for (const field of ["roomCode", "professor", "building"] as const) {
+    if (update[field] === "") {
+      found.set(field, undefined);
+      delete update[field];
+    }
+  }
+
   Object.assign(found, update);
   await found.save();
 

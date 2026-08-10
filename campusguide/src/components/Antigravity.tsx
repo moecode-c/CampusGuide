@@ -28,6 +28,8 @@ export interface AntigravityProps {
   responsive?: boolean;
   eventSource?: HTMLElement | null;
   pointer?: { x: number; y: number };
+  /** "never" parks the render loop without unmounting the scene. */
+  frameloop?: "always" | "demand" | "never";
 }
 
 type AntigravityInnerProps = Omit<AntigravityProps, "eventSource">;
@@ -231,12 +233,13 @@ const AntigravityInner: React.FC<AntigravityInnerProps> = ({
 };
 
 const Antigravity: React.FC<AntigravityProps> = (props) => {
-  const { eventSource, ...innerProps } = props;
+  const { eventSource, frameloop = "always", ...innerProps } = props;
 
   return (
     <Canvas
       eventSource={eventSource ?? undefined}
       eventPrefix="client"
+      frameloop={frameloop}
       className="h-full w-full"
       style={{ width: "100%", height: "100%", display: "block", pointerEvents: "none" }}
       gl={{ alpha: true, antialias: true }}

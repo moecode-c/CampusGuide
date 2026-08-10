@@ -7,6 +7,7 @@ import { enforceRateLimit } from "@/server/security/rateLimit";
 import { requireRole } from "@/server/security/requireRole";
 import { invalidateRoomsCache } from "@/server/data/rooms";
 import { noStoreJson } from "@/server/httpCache";
+import { isDuplicateKeyError } from "@/server/mongoErrors";
 
 const patchSchema = z
   .object({
@@ -47,40 +48,43 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     });
   }
 
+  // MongoDB rejects an empty `$set`, which would surface as a 500.
+  if (Object.keys(parsed.data).length === 0) {
+    return new Response(JSON.stringify({ error: "No fields to update" }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
   await connectToDatabase();
-  const fs = await import("fs");
-  const path = await import("path");
-  const logFile = path.resolve(process.cwd(), "debug-rooms.log");
 
-  const log = (msg: string) => {
-    const time = new Date().toISOString();
-    fs.appendFileSync(logFile, `[${time}] ${msg}\n`);
-  };
-
-  log(`[PATCH] Request for ${id} with body: ${JSON.stringify(parsed.data)}`);
-
-  console.log(`[PATCH] Updating room ${id} with`, parsed.data);
-
-  const updated = await Room.findOneAndUpdate(
-    { _id: id },
-    { $set: parsed.data },
-    { new: true, runValidators: true }
-  ).lean();
+  let updated;
+  try {
+    updated = await Room.findOneAndUpdate(
+      { _id: id },
+      { $set: parsed.data },
+      { new: true, runValidators: true }
+    ).lean();
+  } catch (err) {
+    if (isDuplicateKeyError(err)) {
+      return new Response(JSON.stringify({ error: "Room code already exists" }), {
+        status: 409,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    throw err;
+  }
 
   if (!updated) {
-    log(`[PATCH] Room ${id} not found in DB`);
-    console.log(`[PATCH] Room ${id} not found`);
     return new Response(JSON.stringify({ error: "Not found" }), {
       status: 404,
       headers: { "content-type": "application/json" },
     });
   }
 
-  log(`[PATCH] Successfully updated ${id}. New state: ${JSON.stringify(updated)}`);
-  console.log(`[PATCH] Updated room:`, updated);
   invalidateRoomsCache();
 
-  return noStoreJson({ ok: true, item: updated }, 200);
+  return noStoreJson({ ok: true, item: { ...updated, _id: String((updated as any)._id) } }, 200);
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

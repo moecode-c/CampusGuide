@@ -31,8 +31,14 @@ export function ScheduleManager({ onUpdate }: { onUpdate: () => void }) {
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
-        setBusy(true);
         setMsg(null);
+
+        if (end <= start) {
+            setMsg({ type: "error", text: "End time must be after start time." });
+            return;
+        }
+
+        setBusy(true);
 
         const row = {
             title,
@@ -44,23 +50,29 @@ export function ScheduleManager({ onUpdate }: { onUpdate: () => void }) {
             roomCode: room || undefined,
         };
 
-        const res = await fetch("/api/student/schedule/import", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ rows: [row] }),
-        });
+        try {
+            const res = await fetch("/api/student/schedule/import", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ rows: [row] }),
+            });
 
-        setBusy(false);
-        if (res.ok) {
-            setMsg({ type: "success", text: "Class added successfully!" });
-            onUpdate();
-            window.dispatchEvent(new Event("cg:calendar:refetch"));
-            setTitle("");
-            setProf("");
-            setRoom("");
-        } else {
-            const j = await res.json().catch(() => ({}));
-            setMsg({ type: "error", text: j.error ?? "Failed to add class" });
+            if (res.ok) {
+                setMsg({ type: "success", text: "Class added successfully!" });
+                onUpdate();
+                window.dispatchEvent(new Event("cg:calendar:refetch"));
+                setTitle("");
+                setProf("");
+                setRoom("");
+            } else {
+                const j = await res.json().catch(() => ({}));
+                setMsg({ type: "error", text: j.error ?? "Failed to add class" });
+            }
+        } catch {
+            setMsg({ type: "error", text: "Network error. Please try again." });
+        } finally {
+            // Without a finally the button stays disabled forever on a failed request.
+            setBusy(false);
         }
     }
 

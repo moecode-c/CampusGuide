@@ -4,11 +4,9 @@ type ExcludedRange = { start: Date; end: Date };
 
 export function computeExdatesForRule({
   rrule,
-  dtstart,
   excludedRanges,
 }: {
   rrule: RRule;
-  dtstart: Date;
   excludedRanges: ExcludedRange[];
 }) {
   const ex = new Set<string>();

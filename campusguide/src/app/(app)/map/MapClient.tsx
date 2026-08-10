@@ -8,8 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Search, Navigation } from "lucide-react";
+import { MapPin, Search } from "lucide-react";
 import Papa from "papaparse";
+import { normalizeClockTime } from "@/lib/time";
 
 type Room = { roomCode: string; building: string; floor: number; x: number; y: number };
 
@@ -88,25 +89,30 @@ export function MapClient() {
 
   const reload = React.useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/student/map");
-    const j = await res.json().catch(() => null);
-    if (!res.ok) {
-      setError(j?.error ?? "Failed to load map data");
+    try {
+      const res = await fetch("/api/student/map");
+      const j = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(j?.error ?? "Failed to load map data");
+        return;
+      }
+      const list = (j?.rooms ?? []) as Room[];
+      setRooms(list);
+      setUpcoming((j?.upcoming ?? []) as Upcoming[]);
+      setScheduleRoomCodes(((j?.scheduleRoomCodes ?? []) as string[]).map((c) => String(c).trim().toUpperCase()));
+
+      if (initialRoom) {
+        const found = list.find((r) => r.roomCode === initialRoom);
+        setSelected(found ?? null);
+      }
+
+      setError(null);
+    } catch {
+      // Without this the page stays on "Loading…" forever after a dropped request.
+      setError("Network error. Check your connection and try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-    const list = (j?.rooms ?? []) as Room[];
-    setRooms(list);
-    setUpcoming((j?.upcoming ?? []) as Upcoming[]);
-    setScheduleRoomCodes(((j?.scheduleRoomCodes ?? []) as string[]).map((c) => String(c).trim().toUpperCase()));
-
-    if (initialRoom) {
-      const found = list.find((r) => r.roomCode === initialRoom);
-      setSelected(found ?? null);
-    }
-
-    setError(null);
-    setLoading(false);
   }, [initialRoom]);
 
   React.useEffect(() => {
@@ -134,61 +140,76 @@ export function MapClient() {
     setImportMsg(null);
     setImporting(true);
 
-    const text = await file.text();
-    const parsed = Papa.parse<Record<string, string>>(text, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: (h) => h.trim(),
-    });
+    try {
+      const text = await file.text();
+      const parsed = Papa.parse<Record<string, string>>(text, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: (h) => h.trim(),
+      });
 
-    if (parsed.errors?.length) {
-      setImportMsg("CSV parse failed. Check the header row.");
+      if (parsed.errors?.length) {
+        setImportMsg("CSV parse failed. Check the header row.");
+        return;
+      }
+
+      const allowedDow = new Set<ImportRow["dayOfWeek"]>(["MO", "TU", "WE", "TH", "FR", "SA", "SU"]);
+
+      const rows: ImportRow[] = (parsed.data ?? [])
+        .map((r) => {
+          const title = String(r.title ?? "").trim();
+
+          const typeRaw = String(r.type ?? "").trim().toLowerCase();
+          const type: ImportRow["type"] = typeRaw.startsWith("lab") ? "lab" : "lecture";
+
+          const dayOfWeekRaw = String(r.dayOfWeek ?? "").trim().toUpperCase();
+          const dayOfWeek = (allowedDow.has(dayOfWeekRaw as any) ? dayOfWeekRaw : "MO") as ImportRow["dayOfWeek"];
+
+          const startTime = normalizeClockTime(r.startTime);
+          const endTime = normalizeClockTime(r.endTime);
+          const roomCode = String(r.roomCode ?? "").trim();
+
+          return {
+            title,
+            type,
+            dayOfWeek,
+            startTime,
+            endTime,
+            roomCode: roomCode ? roomCode : undefined,
+          };
+        })
+        .filter((r) => Boolean(r.title));
+
+      if (rows.length === 0) {
+        setImportMsg("No rows with a title were found. Check the CSV headers.");
+        return;
+      }
+
+      const badRow = rows.find((r) => !r.startTime || !r.endTime || r.endTime <= r.startTime);
+      if (badRow) {
+        setImportMsg(`"${badRow.title}": startTime/endTime must be HH:MM with end after start.`);
+        return;
+      }
+
+      const res = await fetch("/api/student/schedule/import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ rows }),
+      });
+      const j = await res.json().catch(() => null);
+      if (!res.ok) {
+        setImportMsg(j?.error ?? "Import failed");
+        return;
+      }
+
+      setImportMsg(`Imported ${j?.imported ?? rows.length} items into your calendar.`);
+      window.dispatchEvent(new Event("cg:calendar:refetch"));
+      await reload();
+    } catch {
+      setImportMsg("Import failed. Check the file and your connection.");
+    } finally {
       setImporting(false);
-      return;
     }
-
-    const allowedDow = new Set<ImportRow["dayOfWeek"]>(["MO", "TU", "WE", "TH", "FR", "SA", "SU"]);
-
-    const rows: ImportRow[] = (parsed.data ?? [])
-      .map((r) => {
-        const title = String(r.title ?? "").trim();
-
-        const typeRaw = String(r.type ?? "").trim().toLowerCase();
-        const type: ImportRow["type"] = typeRaw.startsWith("lab") ? "lab" : "lecture";
-
-        const dayOfWeekRaw = String(r.dayOfWeek ?? "").trim().toUpperCase();
-        const dayOfWeek = (allowedDow.has(dayOfWeekRaw as any) ? dayOfWeekRaw : "MO") as ImportRow["dayOfWeek"];
-
-        const startTime = String(r.startTime ?? "").trim();
-        const endTime = String(r.endTime ?? "").trim();
-        const roomCode = String(r.roomCode ?? "").trim();
-
-        return {
-          title,
-          type,
-          dayOfWeek,
-          startTime,
-          endTime,
-          roomCode: roomCode ? roomCode : undefined,
-        };
-      })
-      .filter((r) => Boolean(r.title));
-
-    const res = await fetch("/api/student/schedule/import", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ rows }),
-    });
-    const j = await res.json().catch(() => null);
-    if (!res.ok) {
-      setImportMsg(j?.error ?? "Import failed");
-      setImporting(false);
-      return;
-    }
-
-    setImportMsg(`Imported ${j?.imported ?? rows.length} items into your calendar.`);
-    await reload();
-    setImporting(false);
   }
 
   return (
@@ -306,7 +327,7 @@ export function MapClient() {
               Interactive map
             </CardTitle>
             <CardDescription>
-              Use pinch/scroll to zoom. Searching a room centers the marker. The map image must exist at /public/campus-map.png.
+              Use pinch/scroll to zoom. Select a room to highlight it on the map.
             </CardDescription>
           </CardHeader>
           <CardContent>

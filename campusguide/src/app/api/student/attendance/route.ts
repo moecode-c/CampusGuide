@@ -5,38 +5,10 @@ import { enforceRateLimit } from "@/server/security/rateLimit";
 import { Event, EventTypes } from "@/server/models/Event";
 import { Attendance } from "@/server/models/Attendance";
 import { jsonWithEtag, noStoreJson } from "@/server/httpCache";
+import { expandOccurrences } from "@/server/calendar/recurrence";
 
 function seriesKey(title: string, type: string) {
   return `${type}:${title.trim().toLowerCase()}`;
-}
-
-function dayCodeToNumber(code: string) {
-  const map: Record<string, number> = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 };
-  return map[code] ?? null;
-}
-
-function parseByDays(rrule: string | null | undefined, fallbackStart: Date) {
-  const body = String(rrule ?? "").trim().toUpperCase().replace(/^RRULE:/, "");
-  const m = body.match(/(^|;)BYDAY=([A-Z,]+)/);
-  const codes = m?.[2]?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
-  const dows = codes.map(dayCodeToNumber).filter((n): n is number => typeof n === "number");
-  if (dows.length) return Array.from(new Set(dows));
-  return [fallbackStart.getDay()];
-}
-
-function dateOnlyLocal(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-function maxDate(a: Date, b: Date) {
-  return a.getTime() >= b.getTime() ? a : b;
-}
-
-function nextDowOnOrAfterLocal(fromDate: Date, dow: number) {
-  const d = dateOnlyLocal(fromDate);
-  const delta = (dow - d.getDay() + 7) % 7;
-  d.setDate(d.getDate() + delta);
-  return d;
 }
 
 const patchSchema = z.object({
@@ -72,51 +44,33 @@ export async function GET(req: Request) {
   const attendance = await Attendance.find({ userId: session.user.id }).lean();
   const missedByKey = new Map(attendance.map((a: any) => [a.key, a.missedCount]));
 
-  const series: Array<{ key: string; title: string; type: string; total: number; missed: number }> = [];
-
-  let totalSessions = 0;
-  let missedSessions = 0;
+  // A course imported for two weekdays is stored as two Event documents that
+  // share a series key. Group first, otherwise both the session totals and the
+  // (per-key) missed count get added once per document.
+  const grouped = new Map<string, { key: string; title: string; type: string; total: number; missed: number }>();
 
   for (const e of events as any[]) {
     const key = seriesKey(e.title, e.type);
-    const missed = missedByKey.get(key) ?? 0;
+    const count = expandOccurrences(e, windowStart, windowEnd).length;
 
-    let count = 0;
-    if (e.isRecurring && e.rrule) {
-      const startBase = new Date(e.start);
-      const endBase = new Date(e.end);
-      const durationMs = endBase.getTime() - startBase.getTime();
-
-      const bydays = parseByDays(e.rrule, startBase);
-      const hh = startBase.getHours();
-      const mm = startBase.getMinutes();
-
-      const seriesStartDay = dateOnlyLocal(startBase);
-      const searchFrom = maxDate(seriesStartDay, dateOnlyLocal(windowStart));
-
-      for (const dow of bydays) {
-        let day = nextDowOnOrAfterLocal(searchFrom, dow);
-        while (day.getTime() < windowEnd.getTime()) {
-          const startOcc = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hh, mm, 0, 0);
-          if (startOcc.getTime() < startBase.getTime()) {
-            day.setDate(day.getDate() + 7);
-            continue;
-          }
-          const endOcc = new Date(startOcc.getTime() + durationMs);
-          if (endOcc > windowStart && startOcc < windowEnd) count += 1;
-          day.setDate(day.getDate() + 7);
-        }
-      }
-    } else {
-      const d = new Date(e.start);
-      if (d >= windowStart && d <= windowEnd) count = 1;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.total += count;
+      continue;
     }
 
-    totalSessions += count;
-    missedSessions += missed;
-
-    series.push({ key, title: e.title, type: e.type, total: count, missed });
+    grouped.set(key, {
+      key,
+      title: e.title,
+      type: e.type,
+      total: count,
+      missed: missedByKey.get(key) ?? 0,
+    });
   }
+
+  const series = Array.from(grouped.values());
+  const totalSessions = series.reduce((sum, s) => sum + s.total, 0);
+  const missedSessions = series.reduce((sum, s) => sum + s.missed, 0);
 
   const allowedAbsences = Math.floor((totalSessions * maxAbsencePercent) / 100);
   const remainingAllowed = Math.max(allowedAbsences - missedSessions, 0);

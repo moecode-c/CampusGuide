@@ -17,6 +17,8 @@ export function AboutHero() {
   const pointerPendingRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [pointer, setPointer] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isHovering, setIsHovering] = useState(false);
+  const [canvasAllowed, setCanvasAllowed] = useState(false);
+  const [inView, setInView] = useState(true);
 
   const roles = useRef([
     "FULL-STACK ENGINEER",
@@ -34,6 +36,31 @@ export function AboutHero() {
 
   useEffect(() => {
     setEventSource(sectionRef.current);
+  }, []);
+
+  // The particle canvas pulls in three.js — ~850 KB, the single largest chunk in
+  // the app. Phones and reduced-motion users never mount it, so the dynamic
+  // import never fires and they never download it.
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 768px) and (prefers-reduced-motion: no-preference)");
+    const apply = () => setCanvasAllowed(query.matches);
+
+    apply();
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
+  }, []);
+
+  // Scrolled past the hero, the render loop keeps burning CPU for pixels nobody
+  // can see. Park it until the section comes back into view.
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), {
+      rootMargin: "100px",
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -105,9 +132,11 @@ export function AboutHero() {
       className="relative overflow-hidden rounded-3xl border border-foreground/10 bg-panel/20"
     >
       <div className="pointer-events-none absolute inset-0 opacity-45 md:opacity-70">
+        {canvasAllowed ? (
         <Antigravity
           eventSource={eventSource}
           pointer={pointer}
+          frameloop={inView ? "always" : "never"}
           count={250}
           particleSize={1.7}
           waveAmplitude={1.35}
@@ -120,6 +149,7 @@ export function AboutHero() {
           color="#00bfff"
           autoAnimate={!isHovering}
         />
+        ) : null}
       </div>
       <div className="absolute inset-0 bg-background/35 md:bg-background/20" />
 

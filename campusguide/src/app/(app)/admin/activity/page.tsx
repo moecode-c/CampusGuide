@@ -1,0 +1,136 @@
+"use client";
+
+import * as React from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
+import { ActivityFeed, type ActivityItem } from "@/components/admin/ActivityFeed";
+import { ActivityActions } from "@/lib/activityActions";
+
+/** Grouped so the filter reads as categories rather than a wall of dotted keys. */
+const ACTION_GROUPS: { label: string; actions: { value: string; label: string }[] }[] = [
+  {
+    label: "Accounts",
+    actions: [
+      { value: ActivityActions.Register, label: "Registered" },
+      { value: ActivityActions.SignIn, label: "Signed in" },
+    ],
+  },
+  {
+    label: "Moderation",
+    actions: [
+      { value: ActivityActions.VerifyApprove, label: "Verified" },
+      { value: ActivityActions.VerifyReject, label: "Rejected" },
+      { value: ActivityActions.UserBan, label: "Banned" },
+      { value: ActivityActions.UserUnban, label: "Unbanned" },
+      { value: ActivityActions.UserDelete, label: "Account deleted" },
+    ],
+  },
+  {
+    label: "Content",
+    actions: [
+      { value: ActivityActions.ResourceCreate, label: "Resource added" },
+      { value: ActivityActions.ResourceUpdate, label: "Resource edited" },
+      { value: ActivityActions.ResourceReplace, label: "File replaced" },
+      { value: ActivityActions.ResourceDelete, label: "Resource deleted" },
+      { value: ActivityActions.FolderCreate, label: "Folder created" },
+      { value: ActivityActions.FolderUpdate, label: "Folder changed" },
+      { value: ActivityActions.FolderDelete, label: "Folder deleted" },
+    ],
+  },
+];
+
+export default function AdminActivityPage() {
+  const [items, setItems] = React.useState<ActivityItem[]>([]);
+  const [action, setAction] = React.useState("");
+  const [limit, setLimit] = React.useState("50");
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams({ limit });
+    if (action) params.set("action", action);
+
+    try {
+      const res = await fetch(`/api/admin/activity?${params.toString()}`);
+      const j = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(j?.error ?? "Failed to load the activity log");
+        return;
+      }
+      setItems((j?.items ?? []) as ActivityItem[]);
+      setError(null);
+    } catch {
+      setError("Network error. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [action, limit]);
+
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight">Activity log</h1>
+          <p className="text-sm text-foreground/60">Every recorded action, newest first.</p>
+        </div>
+        <Button variant="ghost" onClick={load} disabled={loading}>
+          <RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Reload
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Filter</CardTitle>
+          <CardDescription>Narrow the feed by what happened.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-2 lg:max-w-xl">
+            <div className="space-y-1">
+              <label className="text-sm font-semibold">Action</label>
+              <Select value={action} onChange={(e) => setAction(e.target.value)}>
+                <option value="">All actions</option>
+                {ACTION_GROUPS.map((group) => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.actions.map((a) => (
+                      <option key={a.value} value={a.value}>
+                        {a.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-semibold">Show</label>
+              <Select value={limit} onChange={(e) => setLimit(e.target.value)}>
+                <option value="25">Last 25</option>
+                <option value="50">Last 50</option>
+                <option value="100">Last 100</option>
+              </Select>
+            </div>
+          </div>
+
+          {error ? <p className="mt-3 text-sm font-semibold text-risk">{error}</p> : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">
+            {loading ? "Loading…" : `${items.length} event${items.length === 1 ? "" : "s"}`}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ActivityFeed items={items} />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

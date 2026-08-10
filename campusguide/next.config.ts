@@ -6,7 +6,9 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: {
     formats: ["image/avif", "image/webp"],
-    minimumCacheTTL: 60,
+    // These are static files in /public that only change when renamed, so a
+    // 60-second TTL just pays for the same optimization over and over.
+    minimumCacheTTL: 31536000,
   },
   async headers() {
     return [
@@ -17,10 +19,6 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/retromo1nobg.png",
-        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
-      },
-      {
-        source: "/robot-playground.glb",
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
     ];

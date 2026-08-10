@@ -4,6 +4,7 @@ import { requireSession } from "@/server/security/requireSession";
 import { enforceRateLimit } from "@/server/security/rateLimit";
 import { Event, EventTypes } from "@/server/models/Event";
 import { noStoreJson } from "@/server/httpCache";
+import { expandOccurrences } from "@/server/calendar/recurrence";
 
 // FullCalendar commonly sends start/end with timezone offsets like "+02:00".
 // Zod's default datetime() only accepts "Z"; enable offsets to avoid 400s.
@@ -14,34 +15,9 @@ const querySchema = z.object({
   end: isoDate.optional(),
 });
 
-function dayCodeToNumber(code: string) {
-  const map: Record<string, number> = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 };
-  return map[code] ?? null;
-}
-
-function parseByDays(rrule: string | null | undefined, fallbackStart: Date) {
-  const body = String(rrule ?? "").trim().toUpperCase().replace(/^RRULE:/, "");
-  const m = body.match(/(^|;)BYDAY=([A-Z,]+)/);
-  const codes = m?.[2]?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
-  const dows = codes.map(dayCodeToNumber).filter((n): n is number => typeof n === "number");
-  if (dows.length) return Array.from(new Set(dows));
-  return [fallbackStart.getDay()];
-}
-
-function dateOnlyLocal(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-function maxDate(a: Date, b: Date) {
-  return a.getTime() >= b.getTime() ? a : b;
-}
-
-function nextDowOnOrAfterLocal(fromDate: Date, dow: number) {
-  const d = dateOnlyLocal(fromDate);
-  const delta = (dow - d.getDay() + 7) % 7;
-  d.setDate(d.getDate() + delta);
-  return d;
-}
+// A calendar view is never wider than a year; anything larger is a client bug
+// or an attempt to make the server expand an unbounded number of occurrences.
+const MAX_RANGE_MS = 400 * 24 * 60 * 60 * 1000;
 
 const baseSchema = z.object({
   title: z.string().min(1).max(120).transform((v) => v.trim()),
@@ -90,7 +66,17 @@ export async function GET(req: Request) {
   // Default window if caller doesn't provide range.
   const now = new Date();
   const rangeStart = parsedQuery.data.start ? new Date(parsedQuery.data.start) : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const rangeEnd = parsedQuery.data.end ? new Date(parsedQuery.data.end) : new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+  const requestedEnd = parsedQuery.data.end ? new Date(parsedQuery.data.end) : new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+  const rangeEnd = new Date(
+    Math.min(requestedEnd.getTime(), rangeStart.getTime() + MAX_RANGE_MS)
+  );
+
+  if (!(rangeStart < rangeEnd)) {
+    return new Response(JSON.stringify({ error: "Invalid range" }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  }
 
   const items = await Event.find({ userId: session.user.id })
     .sort({ start: 1 })
@@ -105,54 +91,19 @@ export async function GET(req: Request) {
     const professor = e.professor ?? null;
     const building = e.building ?? null;
 
-    const startBase = new Date(e.start);
-    const endBase = new Date(e.end);
-    const durationMs = endBase.getTime() - startBase.getTime();
+    const isRecurring = Boolean(e.isRecurring && e.rrule);
+    const occurrences = expandOccurrences(e, rangeStart, rangeEnd);
 
-    // One-off event
-    if (!e.isRecurring || !e.rrule) {
-      if (endBase > rangeStart && startBase < rangeEnd) {
-        expanded.push({
-          id: baseId,
-          title: e.title,
-          start: startBase.toISOString(),
-          end: endBase.toISOString(),
-          extendedProps: { type, roomCode, professor, building, isRecurring: false, baseId },
-        });
-      }
-      continue;
-    }
-
-    // Weekly recurring: expand occurrences in the requested range.
-    const bydays = parseByDays(e.rrule, startBase);
-    const hh = startBase.getHours();
-    const mm = startBase.getMinutes();
-
-    const seriesStartDay = dateOnlyLocal(startBase);
-    const searchFrom = maxDate(seriesStartDay, dateOnlyLocal(rangeStart));
-
-    for (const dow of bydays) {
-      let day = nextDowOnOrAfterLocal(searchFrom, dow);
-      while (day.getTime() < rangeEnd.getTime()) {
-        const startOcc = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hh, mm, 0, 0);
-        if (startOcc.getTime() < startBase.getTime()) {
-          day.setDate(day.getDate() + 7);
-          continue;
-        }
-        const endOcc = new Date(startOcc.getTime() + durationMs);
-        if (endOcc > rangeStart && startOcc < rangeEnd) {
-          const startIso = startOcc.toISOString();
-          expanded.push({
-            id: `${baseId}:${startIso}`,
-            groupId: baseId,
-            title: e.title,
-            start: startIso,
-            end: endOcc.toISOString(),
-            extendedProps: { type, roomCode, professor, building, isRecurring: true, baseId },
-          });
-        }
-        day.setDate(day.getDate() + 7);
-      }
+    for (const occ of occurrences) {
+      const startIso = occ.start.toISOString();
+      expanded.push({
+        id: isRecurring ? `${baseId}:${startIso}` : baseId,
+        ...(isRecurring ? { groupId: baseId } : {}),
+        title: e.title,
+        start: startIso,
+        end: occ.end.toISOString(),
+        extendedProps: { type, roomCode, professor, building, isRecurring, baseId },
+      });
     }
   }
 
@@ -229,10 +180,10 @@ export async function DELETE(req: Request) {
 
   // Calendar navigation can generate multiple fetches quickly; limit per-user (not per-IP)
   // to avoid shared-network false positives.
-  const limitedIp = await enforceRateLimit(req.headers, "student:events:get:ip", { points: 120, duration: 60 });
+  const limitedIp = await enforceRateLimit(req.headers, "student:events:delete:ip", { points: 120, duration: 60 });
   if (limitedIp) return limitedIp;
 
-  const limitedUser = await enforceRateLimit(req.headers, "student:events:get:user", {
+  const limitedUser = await enforceRateLimit(req.headers, "student:events:delete:user", {
     points: 300,
     duration: 60,
     identity: session.user.id,

@@ -29,9 +29,12 @@ const sizes: Record<Size, string> = {
   icon: "h-10 w-10",
 };
 
-export function Button({ className, variant = "primary", size = "default", ...props }: Props) {
+export function Button({ className, variant = "primary", size = "default", type = "button", ...props }: Props) {
   return (
     <button
+      // <button> defaults to type="submit"; inside a form that turned every
+      // unrelated button into an accidental submit.
+      type={type}
       className={cn(
         "inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all duration-200 ease-out",
         "hover:-translate-y-0.5 active:translate-y-0 active:opacity-90",

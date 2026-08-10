@@ -54,18 +54,14 @@ async function main() {
     { upsert: true }
   );
 
-  // eslint-disable-next-line no-console
   console.log("Admin account ready:");
-  // eslint-disable-next-line no-console
   console.log(`  email: ${email}`);
-  // eslint-disable-next-line no-console
   console.log(`  password: ${password}`);
 
   await mongoose.disconnect();
 }
 
 main().catch((err) => {
-  // eslint-disable-next-line no-console
   console.error(err);
   process.exitCode = 1;
 });

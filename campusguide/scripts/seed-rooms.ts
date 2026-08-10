@@ -148,14 +148,12 @@ async function main() {
 
   invalidateRoomsCache();
 
-  // eslint-disable-next-line no-console
   console.log(`Seeded/updated ${seed.length} rooms.`);
 
   await mongoose.disconnect();
 }
 
 main().catch((err) => {
-  // eslint-disable-next-line no-console
   console.error(err);
   process.exitCode = 1;
 });

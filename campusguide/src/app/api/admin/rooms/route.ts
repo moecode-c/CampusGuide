@@ -5,6 +5,7 @@ import { enforceRateLimit } from "@/server/security/rateLimit";
 import { requireRole } from "@/server/security/requireRole";
 import { invalidateRoomsCache } from "@/server/data/rooms";
 import { jsonWithEtag, noStoreJson } from "@/server/httpCache";
+import { isDuplicateKeyError } from "@/server/mongoErrors";
 
 const schema = z.object({
   roomCode: z.string().min(2).max(16).transform((v) => v.trim().toUpperCase()),
@@ -61,7 +62,20 @@ export async function POST(req: Request) {
   }
 
   await connectToDatabase();
-  const created = await Room.create(parsed.data);
+
+  let created;
+  try {
+    created = await Room.create(parsed.data);
+  } catch (err) {
+    if (isDuplicateKeyError(err)) {
+      return new Response(JSON.stringify({ error: "Room code already exists" }), {
+        status: 409,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    throw err;
+  }
+
   invalidateRoomsCache();
 
   return noStoreJson({ id: String(created._id) }, 201);

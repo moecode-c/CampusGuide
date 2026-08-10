@@ -36,6 +36,12 @@ export async function connectToDatabase() {
         serverSelectionTimeoutMS: 5_000,
         connectTimeoutMS: 5_000,
         socketTimeoutMS: 10_000,
+        // Every warm serverless instance holds its own pool, so the default of
+        // 100 multiplies fast and can exhaust an Atlas connection cap. Each
+        // instance handles one request at a time; a handful of sockets is plenty.
+        maxPoolSize: 5,
+        minPoolSize: 0,
+        maxIdleTimeMS: 60_000,
       })
       .then((m) => m);
   }

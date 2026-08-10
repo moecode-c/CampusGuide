@@ -10,35 +10,40 @@ import { Plus, Save, Trash2, Calculator } from "lucide-react";
 
 type Row = { subject: string; midtermMark: string; creditHours: string };
 
-export function MidtermClient({ mode }: { mode: "estimator" }) {
+export function MidtermClient() {
   const [rows, setRows] = React.useState<Row[]>([{ subject: "", midtermMark: "", creditHours: "3" }]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [savedAt, setSavedAt] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const res = await fetch("/api/student/midterms");
-      const json = await res.json().catch(() => null);
-      if (cancelled) return;
-      if (!res.ok) {
-        setError(json?.error ?? "Failed to load");
-        setLoading(false);
-        return;
+      try {
+        const res = await fetch("/api/student/midterms");
+        const json = await res.json().catch(() => null);
+        if (cancelled) return;
+        if (!res.ok) {
+          setError(json?.error ?? "Failed to load");
+          return;
+        }
+        const items = (json?.items ?? []) as Array<{ subject: string; midtermMark: number; creditHours?: number }>;
+        setRows(
+          items.length
+            ? items.map((i) => ({
+              subject: i.subject,
+              midtermMark: String(i.midtermMark),
+              creditHours: String(typeof i.creditHours === "number" ? i.creditHours : 3),
+            }))
+            : [{ subject: "", midtermMark: "", creditHours: "3" }]
+        );
+      } catch {
+        if (!cancelled) setError("Network error. Check your connection and try again.");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      const items = (json?.items ?? []) as Array<{ subject: string; midtermMark: number; creditHours?: number }>;
-      setRows(
-        items.length
-          ? items.map((i) => ({
-            subject: i.subject,
-            midtermMark: String(i.midtermMark),
-            creditHours: String(typeof i.creditHours === "number" ? i.creditHours : 3),
-          }))
-          : [{ subject: "", midtermMark: "", creditHours: "3" }]
-      );
-      setLoading(false);
     })();
     return () => {
       cancelled = true;
@@ -61,38 +66,67 @@ export function MidtermClient({ mode }: { mode: "estimator" }) {
   const overallHigh = Math.max(bestSummary.overallGpa, worstSummary.overallGpa);
   const overallAvg = Math.round(((overallLow + overallHigh) / 2) * 100) / 100;
 
-  const bestBySubject = React.useMemo(() => {
-    const map = new Map<string, (typeof bestSummary.items)[number]>();
-    for (const it of bestSummary.items) map.set(it.subject, it);
-    return map;
-  }, [bestSummary.items]);
-  const worstBySubject = React.useMemo(() => {
-    const map = new Map<string, (typeof worstSummary.items)[number]>();
-    for (const it of worstSummary.items) map.set(it.subject, it);
-    return map;
-  }, [worstSummary.items]);
+  // `bestSummary`/`worstSummary` are rebuilt every render, so memoizing here
+  // would never hit; build the lookups directly.
+  const bestBySubject = new Map(bestSummary.items.map((it) => [it.subject, it]));
+  const worstBySubject = new Map(worstSummary.items.map((it) => [it.subject, it]));
 
   async function save() {
     setError(null);
-    setSaving(true);
-    const res = await fetch("/api/student/midterms", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        items: rows
-          .filter((r) => r.subject.trim().length > 0 && r.midtermMark !== "")
-          .map((r) => ({
-            subject: r.subject.trim(),
-            midtermMark: Number(r.midtermMark),
-            creditHours: r.creditHours === "" ? 3 : Number(r.creditHours),
-          })),
-      }),
-    });
-    const j = await res.json().catch(() => ({}));
-    setSaving(false);
-    if (!res.ok) {
-      setError(j.error ?? "Save failed");
+    setSavedAt(null);
+
+    const items = rows
+      .filter((r) => r.subject.trim().length > 0 && r.midtermMark !== "")
+      .map((r) => ({
+        subject: r.subject.trim(),
+        midtermMark: Number(r.midtermMark),
+        creditHours: r.creditHours === "" ? 3 : Number(r.creditHours),
+      }));
+
+    // The API rejects the whole payload on a bad number; say which row is wrong.
+    const invalid = items.find(
+      (i) =>
+        !Number.isFinite(i.midtermMark) ||
+        i.midtermMark < 0 ||
+        i.midtermMark > 40 ||
+        !Number.isFinite(i.creditHours) ||
+        i.creditHours < 0 ||
+        i.creditHours > 10
+    );
+    if (invalid) {
+      setError(`"${invalid.subject}": mark must be 0–40 and credit hours 0–10.`);
       return;
+    }
+
+    const seen = new Set<string>();
+    const duplicate = items.find((i) => {
+      const key = i.subject.toLowerCase();
+      if (seen.has(key)) return true;
+      seen.add(key);
+      return false;
+    });
+    if (duplicate) {
+      setError(`"${duplicate.subject}" appears more than once. Subjects must be unique.`);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/student/midterms", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(j.error ?? "Save failed");
+        return;
+      }
+      setSavedAt(Date.now());
+    } catch {
+      setError("Network error. Your marks were not saved.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -192,6 +226,7 @@ export function MidtermClient({ mode }: { mode: "estimator" }) {
               ) : null}
 
               {error ? <p className="text-sm font-semibold text-risk">{error}</p> : null}
+              {!error && savedAt ? <p className="text-sm font-semibold text-success">Saved.</p> : null}
             </div>
           )}
         </CardContent>

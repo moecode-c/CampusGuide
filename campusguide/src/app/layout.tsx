@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { JetBrains_Mono, Oxanium, Press_Start_2P } from "next/font/google";
 import "./globals.css";
 import { AppSessionProvider } from "@/components/SessionProvider";
+import { AppChrome } from "@/components/AppChrome";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { CursorGlow } from "@/components/CursorGlow";
@@ -48,11 +49,9 @@ export default function RootLayout({
         <CursorGlow />
         <AppSessionProvider>
           <div className="min-h-screen bg-background text-foreground">
-            <div className="flex min-h-screen flex-col">
-              <Navbar />
-              <div className="flex-1">{children}</div>
-              <Footer />
-            </div>
+            <AppChrome navbar={<Navbar />} footer={<Footer />}>
+              {children}
+            </AppChrome>
           </div>
         </AppSessionProvider>
       </body>

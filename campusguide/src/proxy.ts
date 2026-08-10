@@ -6,6 +6,16 @@ function isApi(pathname: string) {
   return pathname.startsWith("/api/");
 }
 
+/**
+ * Forwards the path to server components. The layout needs it to know whether
+ * the current page is the one screen an unverified account may see.
+ */
+function passThrough(req: NextRequest) {
+  const headers = new Headers(req.headers);
+  headers.set("x-pathname", req.nextUrl.pathname);
+  return NextResponse.next({ request: { headers } });
+}
+
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -15,12 +25,15 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/attendance") ||
     pathname.startsWith("/calendar") ||
     pathname.startsWith("/resources") ||
+    pathname.startsWith("/videos") ||
+    pathname.startsWith("/faq") ||
     pathname.startsWith("/map") ||
+    pathname.startsWith("/pending") ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/api/student") ||
     pathname.startsWith("/api/admin");
 
-  if (!needsAuth) return NextResponse.next();
+  if (!needsAuth) return passThrough(req);
 
   const token = await getToken({ req, secret: env.NEXTAUTH_SECRET });
   if (!token) {
@@ -36,12 +49,24 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Account status is deliberately not checked here. Middleware can only read
+  // the JWT, which stays valid for weeks after a ban; the (app) layout and the
+  // API guards re-read the database instead, so revocation is immediate.
+
   if (pathname.startsWith("/api/admin") || pathname.startsWith("/admin")) {
     if ((token as any).role !== "admin") {
-      return new NextResponse(JSON.stringify({ error: "Forbidden" }), {
-        status: isApi(pathname) ? 403 : 307,
-        headers: isApi(pathname) ? { "content-type": "application/json" } : undefined,
-      });
+      if (isApi(pathname)) {
+        return new NextResponse(JSON.stringify({ error: "Forbidden" }), {
+          status: 403,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      // A 307 without a Location header leaves the browser on a blank page.
+      // Send non-admins back to a page they can actually use.
+      const url = req.nextUrl.clone();
+      url.pathname = "/dashboard";
+      url.search = "";
+      return NextResponse.redirect(url);
     }
   }
 
@@ -55,7 +80,7 @@ export async function proxy(req: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  return passThrough(req);
 }
 
 export const config = {
@@ -65,7 +90,10 @@ export const config = {
     "/attendance/:path*",
     "/calendar/:path*",
     "/resources/:path*",
+    "/videos/:path*",
+    "/faq/:path*",
     "/map/:path*",
+    "/pending/:path*",
     "/admin/:path*",
     "/api/student/:path*",
     "/api/admin/:path*",

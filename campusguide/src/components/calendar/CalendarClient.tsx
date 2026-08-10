@@ -175,15 +175,36 @@ export function CalendarClient() {
     if (!confirm("Are you sure you want to delete this event? This will remove all occurrences if it's recurring.")) return;
 
     setIsBusy(true);
-    await fetch(`/api/student/events/${selected.id}`, { method: "DELETE" });
-    setIsBusy(false);
-    setEditOpen(false);
-    setSelected(null);
-    refetch();
+    try {
+      const res = await fetch(`/api/student/events/${selected.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        // Previously any failure was swallowed and the dialog closed as if it worked.
+        const j = await res.json().catch(() => null);
+        alert(j?.error ?? "Failed to delete this class.");
+        return;
+      }
+      setEditOpen(false);
+      setSelected(null);
+      refetch();
+    } catch {
+      alert("Network error. The class was not deleted.");
+    } finally {
+      setIsBusy(false);
+    }
   }
 
   async function saveEventChanges() {
     if (!selected) return;
+
+    if (!editTitle.trim()) {
+      alert("Course title is required.");
+      return;
+    }
+    if (!editStart || !editEnd || editEnd <= editStart) {
+      alert("End time must be after start time.");
+      return;
+    }
+
     setIsBusy(true);
 
     const result = await patchEvent(selected.id, {
@@ -192,8 +213,9 @@ export function CalendarClient() {
       dayOfWeek: selected.extendedProps.isRecurring ? editDow : undefined,
       startTime: editStart,
       endTime: editEnd,
-      roomCode: editRoom || undefined,
-      professor: editProf || undefined,
+      // Send "" rather than dropping the key so a cleared field is actually cleared.
+      roomCode: editRoom.trim(),
+      professor: editProf.trim(),
     });
 
     setIsBusy(false);

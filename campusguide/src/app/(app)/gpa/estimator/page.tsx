@@ -8,7 +8,7 @@ export default function GpaEstimatorPage() {
         Enter midterm exam marks out of 40 only (no finals, no coursework). We display a weighted GPA range: worst-case–best-case.
       </p>
       <div className="pt-4">
-        <MidtermClient mode="estimator" />
+        <MidtermClient />
       </div>
     </div>
   );

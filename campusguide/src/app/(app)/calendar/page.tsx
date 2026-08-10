@@ -20,14 +20,19 @@ export default function CalendarPage() {
   async function clearLectures() {
     if (!confirm("Clear all lectures from your calendar? This cannot be undone.")) return;
     setClearing(true);
-    const res = await fetch("/api/student/events?type=lecture", { method: "DELETE" });
-    setClearing(false);
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      alert(j.error ?? "Failed to clear lectures");
-      return;
+    try {
+      const res = await fetch("/api/student/events?type=lecture", { method: "DELETE" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        alert(j.error ?? "Failed to clear lectures");
+        return;
+      }
+      refetchCalendar();
+    } catch {
+      alert("Network error. Nothing was cleared.");
+    } finally {
+      setClearing(false);
     }
-    refetchCalendar();
   }
 
   return (

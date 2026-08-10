@@ -59,15 +59,21 @@ export async function PUT(req: Request) {
 
   await connectToDatabase();
 
-  const normalized = parsed.data.items.map((i) => ({
-    userId: session.user.id,
-    subject: i.subject,
-    midtermMark: i.midtermMark,
-    creditHours: typeof i.creditHours === "number" && Number.isFinite(i.creditHours) ? i.creditHours : 3,
-  }));
+  // `subject` is unique per user. Sending the same subject twice used to blow up
+  // insertMany *after* the delete, wiping every saved grade — keep the last one.
+  const bySubject = new Map<string, { userId: string; subject: string; midtermMark: number; creditHours: number }>();
+  for (const i of parsed.data.items) {
+    bySubject.set(i.subject.toLowerCase(), {
+      userId: session.user.id,
+      subject: i.subject,
+      midtermMark: i.midtermMark,
+      creditHours: typeof i.creditHours === "number" && Number.isFinite(i.creditHours) ? i.creditHours : 3,
+    });
+  }
+  const normalized = Array.from(bySubject.values());
 
   await MidtermGrade.deleteMany({ userId: session.user.id });
   if (normalized.length) await MidtermGrade.insertMany(normalized);
 
-  return noStoreJson({ ok: true }, 200);
+  return noStoreJson({ ok: true, saved: normalized.length }, 200);
 }
