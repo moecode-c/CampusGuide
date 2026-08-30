@@ -28,7 +28,7 @@ const ROOT_FOLDER = `CG Test Drive ${stamp}`;
 // A second, disposable student account used to prove that a ban takes effect
 // immediately on a session that is already signed in.
 const VICTIM_MIU_ID = `2023/${String(stamp).slice(-5)}`;
-const VICTIM_EMAIL = `cgvictim2023${String(stamp).slice(-5)}@miuegypt.edu.eg`;
+const VICTIM_EMAIL = `cgvictim23${String(stamp).slice(-5)}@miuegypt.edu.eg`;
 const VICTIM_PASSWORD = "VictimPass123";
 let victimId = "";
 

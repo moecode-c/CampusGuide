@@ -3,11 +3,11 @@
  * can never disagree about what a valid student looks like.
  *
  * A student ID is `20xx/xxxxx` — a four-digit intake year starting with 20,
- * then a five-digit serial. The university email embeds those same nine digits
- * after the student's name:
+ * then a five-digit serial. The university email embeds the last two digits of
+ * the year plus the serial, after the student's name:
  *
  *   ID     2024/15832
- *   Email  ahmed202415832@miuegypt.edu.eg
+ *   Email  ahmed2415832@miuegypt.edu.eg
  *
  * Cross-checking the two catches typos and makes a mismatched pair impossible
  * to register with.
@@ -17,13 +17,13 @@ export const MIU_EMAIL_DOMAIN = "miuegypt.edu.eg";
 
 export const MIU_ID_PATTERN = /^20\d{2}\/\d{5}$/;
 
-/** name (letters, dots and hyphens) + the nine ID digits + the university domain. */
+/** name (letters, dots and hyphens) + the seven ID digits + the university domain. */
 const MIU_EMAIL_PATTERN = new RegExp(
-  `^([a-zA-Z][a-zA-Z.\\-]*)(\\d{9})@${MIU_EMAIL_DOMAIN.replace(/\./g, "\\.")}$`
+  `^([a-zA-Z][a-zA-Z.\\-]*)(\\d{7})@${MIU_EMAIL_DOMAIN.replace(/\./g, "\\.")}$`
 );
 
 export const MIU_ID_HINT = "Student ID must look like 2024/15832";
-export const MIU_EMAIL_HINT = `University email must look like ahmed202415832@${MIU_EMAIL_DOMAIN}`;
+export const MIU_EMAIL_HINT = `University email must look like ahmed2415832@${MIU_EMAIL_DOMAIN}`;
 
 /** Trims and normalizes an ID; also accepts a dash or space where the slash goes. */
 export function normalizeMiuId(raw: string) {
@@ -34,11 +34,14 @@ export function isValidMiuId(raw: string) {
   return MIU_ID_PATTERN.test(normalizeMiuId(raw));
 }
 
-/** "2024/15832" -> "202415832". Returns null when the ID is malformed. */
+/**
+ * The digits an email must embed for this ID: "2024/15832" -> "2415832".
+ * Returns null when the ID is malformed.
+ */
 export function miuIdDigits(raw: string) {
   const id = normalizeMiuId(raw);
   if (!MIU_ID_PATTERN.test(id)) return null;
-  return id.replace("/", "");
+  return id.replace("/", "").slice(2);
 }
 
 export function normalizeMiuEmail(raw: string) {
@@ -49,7 +52,7 @@ export function isValidMiuEmail(raw: string) {
   return MIU_EMAIL_PATTERN.test(normalizeMiuEmail(raw));
 }
 
-/** The nine digits embedded in a university email, or null if it isn't one. */
+/** The seven digits embedded in a university email, or null if it isn't one. */
 export function miuEmailDigits(raw: string) {
   const match = MIU_EMAIL_PATTERN.exec(normalizeMiuEmail(raw));
   return match ? match[2] : null;

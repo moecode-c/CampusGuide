@@ -33,38 +33,40 @@ test("a dash or space is accepted where the slash goes", () => {
   assert.ok(isValidMiuId("2024-15832"));
 });
 
-test("the ID digits are the nine that appear in the email", () => {
-  assert.equal(miuIdDigits("2024/15832"), "202415832");
+test("the ID digits are the seven that appear in the email", () => {
+  assert.equal(miuIdDigits("2024/15832"), "2415832");
   assert.equal(miuIdDigits("nonsense"), null);
 });
 
 // -------------------------------------------------------------- addresses
 
 test("only university addresses are accepted", () => {
-  assert.ok(isValidMiuEmail("ahmed202415832@miuegypt.edu.eg"));
-  assert.ok(isValidMiuEmail("AHMED202415832@MIUEGYPT.EDU.EG"), "case should not matter");
+  assert.ok(isValidMiuEmail("ahmed2415832@miuegypt.edu.eg"));
+  assert.ok(isValidMiuEmail("AHMED2415832@MIUEGYPT.EDU.EG"), "case should not matter");
 
-  assert.ok(!isValidMiuEmail("ahmed202415832@gmail.com"), "a personal address is not a student");
+  assert.ok(!isValidMiuEmail("ahmed2415832@gmail.com"), "a personal address is not a student");
   assert.ok(!isValidMiuEmail("ahmed@miuegypt.edu.eg"), "the ID digits are missing");
-  assert.ok(!isValidMiuEmail("202415832@miuegypt.edu.eg"), "the name is missing");
-  assert.ok(!isValidMiuEmail("ahmed20241583@miuegypt.edu.eg"), "eight digits is not an ID");
+  assert.ok(!isValidMiuEmail("2415832@miuegypt.edu.eg"), "the name is missing");
+  assert.ok(!isValidMiuEmail("ahmed241583@miuegypt.edu.eg"), "six digits is not an ID");
+  assert.ok(!isValidMiuEmail("ahmed202415832@miuegypt.edu.eg"), "the full intake year is not used");
 });
 
 // ------------------------------------------------------- the pair together
 
 test("the ID and the email have to describe the same student", () => {
-  assert.equal(validateMiuIdentity("2024/15832", "ahmed202415832@miuegypt.edu.eg"), null);
-  assert.equal(validateMiuIdentity("2024-15832", "Ahmed202415832@miuegypt.edu.eg"), null);
+  assert.equal(validateMiuIdentity("2024/15832", "ahmed2415832@miuegypt.edu.eg"), null);
+  assert.equal(validateMiuIdentity("2024-15832", "Ahmed2415832@miuegypt.edu.eg"), null);
+  assert.equal(validateMiuIdentity("2025/07617", "omar2507617@miuegypt.edu.eg"), null);
 });
 
 test("a mismatched pair is rejected with a specific message", () => {
-  const message = validateMiuIdentity("2024/15832", "ahmed202499999@miuegypt.edu.eg");
+  const message = validateMiuIdentity("2024/15832", "ahmed2499999@miuegypt.edu.eg");
   assert.ok(message, "digits that disagree must not pass");
   assert.match(String(message), /same digits/i);
 });
 
 test("a bad ID is reported before the email is blamed", () => {
-  assert.match(String(validateMiuIdentity("garbage", "ahmed202415832@miuegypt.edu.eg")), /2024\/15832/);
+  assert.match(String(validateMiuIdentity("garbage", "ahmed2415832@miuegypt.edu.eg")), /2024\/15832/);
 });
 
 // ------------------------------------------------------------ phone numbers

@@ -135,7 +135,7 @@ export function RegisterClient() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   type="email"
-                  placeholder={`ahmed202415832@${MIU_EMAIL_DOMAIN}`}
+                  placeholder={`ahmed2415832@${MIU_EMAIL_DOMAIN}`}
                   required
                 />
                 <p className="text-xs text-foreground/60">

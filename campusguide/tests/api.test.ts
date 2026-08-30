@@ -37,10 +37,11 @@ async function closeDb() {
 
 const stamp = Date.now();
 // Registration is MIU-only: the ID is 20xx/xxxxx and the university email has to
-// embed those same nine digits. The last five digits of the clock keep runs unique.
+// embed the last two year digits plus that serial. The last five digits of the
+// clock keep runs unique.
 const MIU_SERIAL = String(stamp).slice(-5);
 const MIU_ID = `2024/${MIU_SERIAL}`;
-const EMAIL = `cgtest2024${MIU_SERIAL}@miuegypt.edu.eg`;
+const EMAIL = `cgtest24${MIU_SERIAL}@miuegypt.edu.eg`;
 const PHONE = `010${String(stamp).slice(-8)}`;
 const PASSWORD = "TestPass123";
 // Must match the server's ACCOUNT_STATE_TTL_MS; the verification test waits it out.
@@ -211,7 +212,7 @@ test("registering the same ID twice returns 409, not 500", async () => {
 
 test("a short password is rejected with readable guidance, not zod internals", async () => {
   const res = await register(
-    registration({ miuId: "2024/00011", email: "weak202400011@miuegypt.edu.eg", password: "short1A" })
+    registration({ miuId: "2024/00011", email: "weak2400011@miuegypt.edu.eg", password: "short1A" })
   );
   assert.equal(res.status, 400);
   const message = String((await json(res))?.error);
@@ -231,7 +232,7 @@ test("a malformed body is rejected as 400, not a 500", async () => {
 });
 
 test("registration is rate limited once the budget is spent", async () => {
-  const res = await register(registration({ miuId: "2024/00013", email: "flood202400013@miuegypt.edu.eg" }));
+  const res = await register(registration({ miuId: "2024/00013", email: "flood2400013@miuegypt.edu.eg" }));
   assert.equal(res.status, 429, "the 6th registration in a minute should be throttled");
 });
 

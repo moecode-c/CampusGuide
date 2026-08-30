@@ -39,9 +39,9 @@ are built from it, so a mismatched port sends you to a dead address after login.
 ### Student verification
 
 Registration is restricted to MIU students. A student ID looks like `2024/15832`
-and the university email must embed those same nine digits
-(`ahmed202415832@miuegypt.edu.eg`) — the two are cross-checked, so a mismatched
-pair cannot register. Sign-in accepts either the ID or the email.
+and the university email must embed the last two digits of the year plus the
+serial (`ahmed2415832@miuegypt.edu.eg`) — the two are cross-checked, so a
+mismatched pair cannot register. Sign-in accepts either the ID or the email.
 
 New accounts start as **pending**: they can hold a session but every student API
 and page redirects them to `/pending`, which tells them to send a photo of their
