@@ -1,24 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ExternalLink } from "lucide-react";
 
-const Antigravity = dynamic(() => import("@/components/Antigravity"), {
-  ssr: false,
-});
-
 export function AboutHero() {
   const sectionRef = useRef<HTMLElement | null>(null);
-  const [eventSource, setEventSource] = useState<HTMLElement | null>(null);
   const pointerRafRef = useRef<number | null>(null);
   const pointerPendingRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [pointer, setPointer] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [isHovering, setIsHovering] = useState(false);
-  const [canvasAllowed, setCanvasAllowed] = useState(false);
-  const [inView, setInView] = useState(true);
 
   const roles = useRef([
     "FULL-STACK ENGINEER",
@@ -33,35 +24,6 @@ export function AboutHero() {
   const avatarStyle = {
     transform: `perspective(900px) rotateX(${pointer.y * 6}deg) rotateY(${pointer.x * 10}deg) translateZ(0)`,
   } as const;
-
-  useEffect(() => {
-    setEventSource(sectionRef.current);
-  }, []);
-
-  // The particle canvas pulls in three.js — ~850 KB, the single largest chunk in
-  // the app. Phones and reduced-motion users never mount it, so the dynamic
-  // import never fires and they never download it.
-  useEffect(() => {
-    const query = window.matchMedia("(min-width: 768px) and (prefers-reduced-motion: no-preference)");
-    const apply = () => setCanvasAllowed(query.matches);
-
-    apply();
-    query.addEventListener("change", apply);
-    return () => query.removeEventListener("change", apply);
-  }, []);
-
-  // Scrolled past the hero, the render loop keeps burning CPU for pixels nobody
-  // can see. Park it until the section comes back into view.
-  useEffect(() => {
-    const el = sectionRef.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-
-    const observer = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), {
-      rootMargin: "100px",
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
 
   useEffect(() => {
     const current = roles.current[roleIndex] ?? "";
@@ -103,7 +65,6 @@ export function AboutHero() {
   }
 
   function onMove(e: React.PointerEvent<HTMLElement>) {
-    if (!isHovering) setIsHovering(true);
     const el = sectionRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -119,46 +80,37 @@ export function AboutHero() {
   }
 
   function onLeave() {
-    setIsHovering(false);
     updatePointer({ x: 0, y: 0 });
   }
 
   return (
     <section
       ref={sectionRef}
-      onPointerEnter={() => setIsHovering(true)}
       onPointerMove={onMove}
       onPointerLeave={onLeave}
       className="relative overflow-hidden rounded-3xl border border-foreground/10 bg-panel/20"
     >
-      <div className="pointer-events-none absolute inset-0 opacity-45 md:opacity-70">
-        {canvasAllowed ? (
-        <Antigravity
-          eventSource={eventSource}
-          pointer={pointer}
-          frameloop={inView ? "always" : "never"}
-          count={250}
-          particleSize={1.7}
-          waveAmplitude={1.35}
-          waveSpeed={0.55}
-          ringRadius={9}
-          magnetRadius={9}
-          rotationSpeed={0.15}
-          depthFactor={1}
-          responsive
-          color="#00bfff"
-          autoAnimate={!isHovering}
-        />
-        ) : null}
-      </div>
+      {/* Replaces a three.js particle canvas that cost 229 KB gzipped on the two
+          most-visited pages. Two static gradients read as the same ambient glow
+          for no transferred bytes at all. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-45 md:opacity-70"
+        style={{
+          background:
+            "radial-gradient(ellipse 60% 70% at 18% 25%, rgba(0,191,255,0.22), transparent 60%), radial-gradient(ellipse 55% 65% at 82% 78%, rgba(0,255,153,0.14), transparent 62%)",
+        }}
+      />
       <div className="absolute inset-0 bg-background/35 md:bg-background/20" />
 
-      <div className="relative grid min-h-56 grid-cols-1 gap-5 p-5 md:min-h-80 md:grid-cols-[1fr_24rem] md:items-stretch md:gap-8 md:p-10 lg:min-h-96 lg:grid-cols-[1fr_30rem] lg:p-12">
+      <div className="relative grid min-h-56 grid-cols-1 gap-5 p-4 md:min-h-80 md:grid-cols-[1fr_24rem] md:items-stretch md:gap-8 md:p-10 lg:min-h-96 lg:grid-cols-[1fr_30rem] lg:p-12">
         <div className="space-y-3">
           <div className="text-sm font-semibold text-foreground/70 md:text-base">About me</div>
-          <h2 className="text-2xl font-extrabold tracking-tight md:text-4xl lg:text-5xl">Mohammed Essam El Din</h2>
-          <div className="inline-flex items-center gap-2 text-xs font-semibold tracking-[0.22em] text-primary/90 md:text-sm">
-            <span className="font-mono">{typed}</span>
+          <h2 className="text-xl font-extrabold tracking-tight sm:text-2xl md:text-4xl lg:text-5xl">
+            Mohammed Essam El Din
+          </h2>
+          <div className="inline-flex max-w-full min-w-0 items-center gap-2 text-[0.65rem] font-semibold tracking-[0.12em] text-primary/90 sm:text-xs sm:tracking-[0.18em] md:text-sm md:tracking-[0.22em]">
+            <span className="min-w-0 truncate font-mono">{typed}</span>
             <span className="inline-block h-4 w-0.5 bg-primary/80 animate-pulse" aria-hidden />
           </div>
           <p className="text-base leading-relaxed text-foreground/80 md:text-lg">

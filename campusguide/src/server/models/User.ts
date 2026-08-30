@@ -38,8 +38,23 @@ const userSchema = new Schema(
     banReason: { type: String },
     rejectionReason: { type: String },
 
+    // Proof of consent. Stored with the version so the record says *which*
+    // wording was agreed to — the text can change, what they accepted cannot.
+    acceptedTermsAt: { type: Date },
+    acceptedTermsVersion: { type: String },
+
     // Written at most once a minute per user; the source of the DAU/WAU/MAU counts.
     lastSeenAt: { type: Date, index: true },
+
+    /**
+     * Where the account was last used from, stamped alongside `lastSeenAt`.
+     *
+     * Only ever the most recent value — this is an operational aid for spotting
+     * a shared or hijacked account, not a location history. Anything longer
+     * lived belongs in the activity log, which already records an IP per action.
+     */
+    lastIp: { type: String, index: true },
+    lastUserAgent: { type: String, maxlength: 400 },
 
     createdAt: { type: Date, default: Date.now },
   },

@@ -1,97 +1,86 @@
 "use client";
 
 import * as React from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import Image from "next/image";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { ChevronDown, HelpCircle, Search } from "lucide-react";
-
-type Faq = { question: string; answer: string; category: string };
+import { ChevronDown, ChevronLeft, Search } from "lucide-react";
+import { cn } from "@/lib/cn";
+import {
+  FAQ_TOPICS,
+  questionsFor,
+  searchFaqs,
+  topicById,
+  type Faq,
+  type FaqTopic,
+  type FaqTopicId,
+} from "@/lib/faq";
 
 /**
- * Placeholder content — replace the copy with the real answers. The page itself
- * needs no changes; it groups, searches and renders whatever is in this list.
+ * A topic picker rather than one long list.
+ *
+ * Twelve stacked accordions made every question look equally (un)important and
+ * buried the one you came for. Choosing a topic first cuts what you read to
+ * two or three answers, and search still cuts across all of them for the times
+ * you don't know which topic your question belongs to.
  */
-const FAQS: Faq[] = [
-  {
-    category: "Attendance",
-    question: "How many lectures can I miss before I'm barred from the exam?",
-    answer:
-      "The rule of thumb is 25% of the sessions for a course. Miss more than that and you risk being denied entry to the final. The Attendance page works this out per course, so you can see exactly how many absences you have left.",
-  },
-  {
-    category: "Attendance",
-    question: "Does a medical excuse remove an absence?",
-    answer:
-      "A stamped medical report submitted to student affairs within a week of the absence is normally accepted. Keep a copy — the absence often stays on the system until the paperwork is processed.",
-  },
-  {
-    category: "Grades",
-    question: "How is the GPA calculated?",
-    answer:
-      "Each course grade maps to a point value, which is weighted by the course's credit hours. The GPA Calculator does the full version; the GPA Estimator projects a range from midterm marks alone, before finals exist.",
-  },
-  {
-    category: "Grades",
-    question: "My midterm is out of 40 — why does the estimator show a range?",
-    answer:
-      "Because the rest of the marks aren't in yet. The estimator shows a best case and a worst case for the remaining assessment, so the real result should land between the two figures.",
-  },
-  {
-    category: "Grades",
-    question: "Can I retake a course to improve my grade?",
-    answer:
-      "Yes, and in most faculties the higher of the two attempts is the one that counts toward the GPA. The failed or lower attempt usually still appears on the transcript.",
-  },
-  {
-    category: "Registration",
-    question: "How do I add or drop a course?",
-    answer:
-      "Course changes happen through the student portal during the add/drop window at the start of each term. After the window closes, dropping a course is recorded as a withdrawal.",
-  },
-  {
-    category: "Registration",
-    question: "What is the maximum number of credit hours per semester?",
-    answer:
-      "Typically 18 credit hours for students in good standing, and fewer if your GPA is below the threshold. Overloading beyond that needs academic advisor approval.",
-  },
-  {
-    category: "Campus",
-    question: "Where is room RB4?",
-    answer:
-      "R building, second floor. Use the Map page and search the room code — it highlights the room, and any class in your calendar links straight to its location.",
-  },
-  {
-    category: "Campus",
-    question: "What are the library opening hours?",
-    answer:
-      "Sunday to Thursday during term time, with shorter hours in the exam period and over the summer break. Check the noticeboard at the entrance for the current schedule.",
-  },
-  {
-    category: "CampusGuide",
-    question: "Why does my account say it's awaiting verification?",
-    answer:
-      "CampusGuide is limited to MIU students. After registering you need to send a photo of your student ID on WhatsApp to the number shown on your pending screen. Once it's approved, everything unlocks.",
-  },
-  {
-    category: "CampusGuide",
-    question: "Can I upload my own summaries to the resources section?",
-    answer:
-      "Not directly — uploads are administrator-only so the material stays organized and trustworthy. Send anything worth sharing to the admin and it can be added to the right folder.",
-  },
-  {
-    category: "CampusGuide",
-    question: "How do I import my timetable?",
-    answer:
-      "Open the Calendar page and use the schedule import. Your classes are stored as weekly recurring events, so they keep appearing every week without re-entering them.",
-  },
-];
 
-function FaqRow({ item, defaultOpen }: { item: Faq; defaultOpen: boolean }) {
+function TopicCard({ topic, count, onPick }: { topic: FaqTopic; count: number; onPick: () => void }) {
+  const Icon = topic.icon;
+
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      className={cn(
+        "group flex flex-col items-center justify-center gap-4 rounded-2xl border border-foreground/15 bg-panel px-5 py-9 text-center",
+        "transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-primary/50 hover:bg-panel/80 hover:shadow-xl hover:shadow-primary/10",
+        "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30"
+      )}
+    >
+      <span className="grid h-20 w-20 place-items-center">
+        {topic.image ? (
+          // Set `image` on the topic in lib/faq.ts to use your own artwork.
+          <Image
+            src={topic.image}
+            alt=""
+            width={80}
+            height={80}
+            className="h-20 w-20 object-contain"
+          />
+        ) : (
+          <Icon
+            className="h-12 w-12 text-primary transition-transform duration-200 group-hover:scale-110"
+            strokeWidth={1.5}
+          />
+        )}
+      </span>
+
+      <span className="space-y-1">
+        <span className="block text-sm font-extrabold uppercase tracking-wide underline-offset-4 group-hover:underline">
+          {topic.label}
+        </span>
+        <span className="block text-xs text-foreground/60">{topic.blurb}</span>
+        <span className="block pt-1 text-[11px] font-semibold text-primary/80">
+          {count} answer{count === 1 ? "" : "s"}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function FaqRow({
+  item,
+  defaultOpen,
+  showTopic,
+}: {
+  item: Faq;
+  defaultOpen: boolean;
+  showTopic?: boolean;
+}) {
   const [open, setOpen] = React.useState(defaultOpen);
 
   return (
-    <div className="rounded-2xl bg-background">
+    <div className="rounded-2xl border border-foreground/10 bg-panel">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -100,83 +89,143 @@ function FaqRow({ item, defaultOpen }: { item: Faq; defaultOpen: boolean }) {
       >
         <span className="min-w-0">
           <span className="block text-sm font-extrabold">{item.question}</span>
-          <span className="mt-0.5 block text-[11px] font-semibold uppercase tracking-wide text-primary/80">
-            {item.category}
-          </span>
+          {showTopic ? (
+            <span className="mt-0.5 block text-[11px] font-semibold uppercase tracking-wide text-primary/80">
+              {topicById(item.topic)?.label}
+            </span>
+          ) : null}
         </span>
         <ChevronDown
-          className={`h-4 w-4 shrink-0 text-foreground/50 transition-transform ${open ? "rotate-180" : ""}`}
+          className={cn(
+            "h-4 w-4 shrink-0 text-foreground/50 transition-transform",
+            open && "rotate-180"
+          )}
         />
       </button>
 
-      {open ? <p className="px-4 pb-4 text-sm text-foreground/80">{item.answer}</p> : null}
+      {/* whitespace-pre-line so the paragraph breaks and bullet lines written
+          into the answer text render, instead of collapsing into one block. */}
+      {open ? (
+        <p className="whitespace-pre-line border-t border-foreground/10 px-4 py-4 text-sm leading-relaxed text-foreground/80">
+          {item.answer}
+        </p>
+      ) : null}
     </div>
   );
 }
 
 export default function FaqPage() {
   const [q, setQ] = React.useState("");
+  const [topicId, setTopicId] = React.useState<FaqTopicId | null>(null);
 
-  const query = q.trim().toLowerCase();
-  const filtered = query
-    ? FAQS.filter((f) => `${f.question} ${f.answer} ${f.category}`.toLowerCase().includes(query))
-    : FAQS;
-
-  const categories = Array.from(new Set(filtered.map((f) => f.category)));
+  const searching = q.trim().length > 0;
+  const results = React.useMemo(() => searchFaqs(q), [q]);
+  const topic = topicId ? topicById(topicId) : null;
+  const topicQuestions = topicId ? questionsFor(topicId) : [];
 
   return (
     <div className="space-y-2">
       <h1 className="text-2xl font-extrabold tracking-tight">FAQ</h1>
       <p className="text-sm text-foreground/70">The questions MIU students ask most often.</p>
 
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <HelpCircle className="h-5 w-5 text-primary" />
-            Common questions
-          </CardTitle>
-          <CardDescription>
-            {filtered.length} answer{filtered.length === 1 ? "" : "s"}
-            {query ? ` matching "${q.trim()}"` : ""}
-          </CardDescription>
-        </CardHeader>
+      <div className="relative mt-5">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/50" />
+        <Input
+          className="h-12 pl-9"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search every question…"
+          aria-label="Search the FAQ"
+        />
+      </div>
 
-        <CardContent>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/50" />
-            <Input
-              className="pl-9"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search the questions…"
-            />
-          </div>
+      {/* Search wins over the topic drill-down: if you typed something, you want
+          matches from everywhere, not just the topic you happened to open. */}
+      {searching ? (
+        <section className="mt-6">
+          <p className="mb-3 text-sm font-semibold text-foreground/70">
+            {results.length} result{results.length === 1 ? "" : "s"} for “{q.trim()}”
+          </p>
 
-          {filtered.length === 0 ? (
-            <p className="mt-4 text-sm text-foreground/70">
-              Nothing matched. Try a different word, or ask the admin directly.
-            </p>
+          {results.length === 0 ? (
+            <div className="rounded-2xl border border-foreground/10 bg-panel px-5 py-12 text-center">
+              <p className="text-sm font-semibold">Nothing matched that.</p>
+              <p className="mt-1 text-sm text-foreground/60">
+                Try a different word, or browse the topics below.
+              </p>
+              <button
+                type="button"
+                onClick={() => setQ("")}
+                className="mt-4 text-sm font-bold text-primary underline-offset-4 hover:underline"
+              >
+                Clear search
+              </button>
+            </div>
           ) : (
-            <div className="mt-5 space-y-6">
-              {categories.map((category) => (
-                <section key={category}>
-                  <div className="mb-2 flex items-center gap-2">
-                    <Badge tone="neutral">{category}</Badge>
-                  </div>
-                  <div className="space-y-2">
-                    {filtered
-                      .filter((f) => f.category === category)
-                      .map((item) => (
-                        // Searching implies you want to read the hit, not click it open.
-                        <FaqRow key={item.question} item={item} defaultOpen={Boolean(query)} />
-                      ))}
-                  </div>
-                </section>
+            <div className="space-y-2">
+              {results.map((item) => (
+                // Open by default: a search hit is something you want to read,
+                // not something you want to click again.
+                <FaqRow key={item.question} item={item} defaultOpen showTopic />
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </section>
+      ) : topic ? (
+        <section className="mt-6">
+          <button
+            type="button"
+            onClick={() => setTopicId(null)}
+            className="mb-4 inline-flex items-center gap-1.5 text-sm font-bold text-foreground/70 hover:text-foreground"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            All topics
+          </button>
+
+          <div className="mb-4 flex items-center gap-4">
+            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-primary/10">
+              {topic.image ? (
+                <Image
+                  src={topic.image}
+                  alt=""
+                  width={56}
+                  height={56}
+                  className="h-10 w-10 object-contain"
+                />
+              ) : (
+                <topic.icon className="h-7 w-7 text-primary" strokeWidth={1.5} />
+              )}
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-xl font-extrabold tracking-tight">{topic.label}</h2>
+              <p className="text-sm text-foreground/60">{topic.blurb}</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {topicQuestions.map((item) => (
+              <FaqRow key={item.question} item={item} defaultOpen={false} />
+            ))}
+          </div>
+        </section>
+      ) : (
+        <section className="mt-6">
+          <h2 className="mb-4 text-center text-lg font-extrabold uppercase tracking-[0.12em] text-foreground/80 sm:tracking-[0.2em]">
+            Topics
+          </h2>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {FAQ_TOPICS.map((t) => (
+              <TopicCard
+                key={t.id}
+                topic={t}
+                count={questionsFor(t.id).length}
+                onPick={() => setTopicId(t.id)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

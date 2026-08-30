@@ -4,6 +4,12 @@ import { requireSession } from "@/server/security/requireSession";
 import { enforceRateLimit } from "@/server/security/rateLimit";
 import { Event, EventTypes } from "@/server/models/Event";
 
+import { ensureCampusTimezone } from "@/server/campusTime";
+
+// The importer builds each class time with setHours() in local time; pin the
+// process to campus time before any of it runs.
+ensureCampusTimezone();
+
 // `\d{2}:\d{2}` alone accepts "99:99", which setHours() would roll over into
 // another day and produce events with a negative or absurd duration.
 const clockTime = z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Time must be HH:MM (24-hour)");

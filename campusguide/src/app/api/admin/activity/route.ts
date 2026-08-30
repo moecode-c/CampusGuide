@@ -37,7 +37,10 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const userId = url.searchParams.get("userId");
   const action = url.searchParams.get("action");
-  const limit = Math.min(Number(url.searchParams.get("limit") ?? 50) || 50, MAX_LIMIT);
+  // Clamped at both ends: a negative limit reaches Mongo as a "single batch"
+  // hint rather than a row count, so `?limit=-5` would quietly ignore the cap.
+  const requestedLimit = Number(url.searchParams.get("limit") ?? 50) || 50;
+  const limit = Math.min(Math.max(Math.floor(requestedLimit), 1), MAX_LIMIT);
 
   const filter: Record<string, unknown> = {};
 

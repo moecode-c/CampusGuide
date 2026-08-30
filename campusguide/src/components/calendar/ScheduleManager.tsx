@@ -79,7 +79,7 @@ export function ScheduleManager({ onUpdate }: { onUpdate: () => void }) {
     return (
         <Dialog open={open} onOpenChange={(v: boolean) => { setOpen(v); if (v) reset(); }}>
             <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" className="w-full gap-2 sm:w-auto">
                     <Plus className="h-4 w-4" />
                     Add Class
                 </Button>

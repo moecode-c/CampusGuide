@@ -186,10 +186,10 @@ export function GpaCalculatorClient() {
           <CardDescription>Grade/mark → letter grade → GPA value.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between rounded-2xl bg-background p-4">
-            <div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-background p-4">
+            <div className="min-w-0">
               <p className="text-xs font-semibold text-foreground/70">Overall GPA</p>
-              <p className="text-3xl font-extrabold tracking-tight">{overallGpa.toFixed(2)}</p>
+              <p className="text-2xl font-extrabold tracking-tight sm:text-3xl">{overallGpa.toFixed(2)}</p>
             </div>
             <Badge tone="neutral">4.0 scale</Badge>
           </div>
@@ -198,8 +198,10 @@ export function GpaCalculatorClient() {
             {items.length === 0 ? (
               <p className="text-sm text-foreground/70">Add grades to see results.</p>
             ) : (
-              items.map((it) => (
-                <div key={it.subject} className="flex items-center justify-between rounded-xl bg-background p-3">
+              // Keyed by position: two rows may carry the same subject name, and
+              // a duplicate key drops one of them from the summary.
+              items.map((it, idx) => (
+                <div key={idx} className="flex items-center justify-between rounded-xl bg-background p-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold">{it.subject}</p>
                     <p className="text-xs text-foreground/70">Input: {it.input} • Credits: {it.creditHours}</p>

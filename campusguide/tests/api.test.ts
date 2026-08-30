@@ -168,6 +168,9 @@ function registration(overrides: Record<string, unknown> = {}) {
     phone: PHONE,
     password: PASSWORD,
     academicYear: 2,
+    // Required since the Terms screen landed: the API refuses anything without
+    // an explicit true here, and consent is recorded on the account.
+    acceptTerms: true,
     ...overrides,
   };
 }
@@ -176,6 +179,28 @@ test("a new account can be registered", async () => {
   const res = await register(registration());
   assert.equal(res.status, 201);
   assert.equal((await json(res))?.status, "pending", "new accounts must start unverified");
+});
+
+test("registration is refused without an explicit terms acceptance", async () => {
+  // The consent record is a legal artifact, so this must fail closed. Both a
+  // missing field and a falsy one have to be rejected — `false` slipping past a
+  // truthiness check is exactly how this kind of guard rots.
+  //
+  // Sent from its own address: the registration limiter allows five attempts per
+  // minute per IP, and the tests below count on that budget being spent exactly.
+  // Borrowing two of them here would throttle the wrong test.
+  const fromElsewhere = (body: Record<string, unknown>) =>
+    api("/api/auth/register", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.77" },
+      body: JSON.stringify(body),
+    });
+
+  const missing = await fromElsewhere(registration({ acceptTerms: undefined }));
+  assert.equal(missing.status, 400);
+
+  const refused = await fromElsewhere(registration({ acceptTerms: false }));
+  assert.equal(refused.status, 400);
 });
 
 test("registering the same ID twice returns 409, not 500", async () => {
@@ -493,8 +518,13 @@ test("every resource link is an absolute http(s) URL", async () => {
   }
 });
 
-test("retired endpoints answer 410 rather than 404 or a crash", async () => {
-  assert.equal((await api("/api/student/attendance-courses")).status, 410);
+test("the attendance-courses endpoint is live again, not the 410 it used to be", async () => {
+  // This was retired once and asserted to answer 410. The attendance rewrite
+  // brought it back — the page now loads, creates, updates and deletes through
+  // it — so a 410 here would mean attendance is broken, not tidy.
+  const res = await api("/api/student/attendance-courses");
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray((await json(res))?.courses), "the page expects a courses array");
 });
 
 test("the resource download redirect rejects a malformed id instead of crashing", async () => {

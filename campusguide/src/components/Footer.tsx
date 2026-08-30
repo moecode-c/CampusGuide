@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, ClipboardCheck, Github, Home, Library, Linkedin, Mail, MapPin, LayoutDashboard, ExternalLink } from "lucide-react";
+import { CalendarDays, ClipboardCheck, Github, Home, Library, Linkedin, Mail, MapPin, LayoutDashboard, ExternalLink, ScrollText } from "lucide-react";
 
 export function Footer() {
   const year = new Date().getFullYear();
@@ -11,6 +11,7 @@ export function Footer() {
     { label: "Calendar", href: "/calendar", icon: <CalendarDays className="h-4 w-4" /> },
     { label: "Resources", href: "/resources", icon: <Library className="h-4 w-4" /> },
     { label: "Map", href: "/map", icon: <MapPin className="h-4 w-4" /> },
+    { label: "Rules & Conditions", href: "/terms", icon: <ScrollText className="h-4 w-4" /> },
   ];
 
   const contactLinks = [
@@ -22,7 +23,7 @@ export function Footer() {
 
   return (
     <footer className="mt-10 border-t border-foreground/10 bg-nav">
-      <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-8 md:grid-cols-2 md:items-start">
+      <div className="mx-auto grid w-full min-w-0 max-w-6xl gap-6 px-3 py-8 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-4 md:grid-cols-2 md:items-start">
         <div className="space-y-1">
           <div className="text-sm font-semibold text-foreground/80">
             <span className="font-extrabold text-foreground">CampusGuide</span>

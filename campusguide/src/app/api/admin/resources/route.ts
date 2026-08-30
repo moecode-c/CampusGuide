@@ -15,9 +15,9 @@ import {
   MAX_UPLOAD_BYTES,
   StorageNotConfiguredError,
   deleteObject,
+  fileNameFromObjectKey,
   headObject,
   publicUrlFor,
-  sanitizeFileName,
 } from "@/server/storage/r2";
 
 const shared = {
@@ -158,7 +158,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const fileName = sanitizeFileName(decodeURIComponent(objectKey.split("/").pop() ?? "file"));
+  const fileName = fileNameFromObjectKey(objectKey);
 
   const created = await Resource.create({
     ...base,

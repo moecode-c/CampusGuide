@@ -19,8 +19,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <AdminSidebar />
 
       {/* Offset matches the fixed rail's width; below lg the rail is a drawer. */}
-      <div className="lg:pl-80">
-        <div className="mx-auto min-w-0 max-w-[90rem] px-4 py-6 sm:px-6 lg:px-8">{children}</div>
+      <div className="lg:pl-72 xl:pl-80">
+        {/*
+          The console is a dense tool, not an article, so it runs much wider
+          than the old 90rem cap allowed — that was leaving a third of a wide
+          monitor empty. The remaining cap only stops tables becoming
+          unreadable on ultrawides, and the padding tightens as space gets
+          scarce rather than staying fixed.
+        */}
+        <div className="mx-auto min-w-0 max-w-[140rem] px-3 py-5 sm:px-6 sm:py-6 2xl:px-10">{children}</div>
       </div>
     </div>
   );

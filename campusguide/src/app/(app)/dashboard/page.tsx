@@ -104,16 +104,16 @@ export default async function DashboardPage() {
             {nextClass ? (
               <div className="space-y-4">
                 <div>
-                  <p className="text-2xl font-extrabold tracking-tight">{nextClass.title}</p>
-                  <div className="flex items-center gap-2 text-sm text-foreground/70 mt-1">
+                  <p className="break-words text-xl font-extrabold tracking-tight sm:text-2xl">{nextClass.title}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-foreground/70">
                     <span className="font-semibold text-foreground">{nextClass.type === "lab" ? "Lab" : "Lecture"}</span>
                     <span>•</span>
                     <span>{nextClass.start.toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  {nextClass.roomCode && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {nextClass.roomCode && (
                     <Link href={`/map?room=${encodeURIComponent(nextClass.roomCode)}`}>
                       <Button size="sm" variant="secondary" className="h-8 gap-1.5">
                         <MapPin className="h-3.5 w-3.5" />
@@ -146,10 +146,10 @@ export default async function DashboardPage() {
             <CardDescription>Midterm marks out of 40, 4.0 scale.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between rounded-2xl bg-background p-4">
-              <div>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-background p-4">
+              <div className="min-w-0">
                 <p className="text-xs font-semibold text-foreground/70">Overall (worst–best)</p>
-                <p className="text-3xl font-extrabold tracking-tight">
+                <p className="text-xl font-extrabold tracking-tight sm:text-3xl">
                   {gpaLow.toFixed(2)}–{gpaHigh.toFixed(2)}
                 </p>
               </div>
@@ -197,7 +197,7 @@ export default async function DashboardPage() {
             ) : (
               <div className="space-y-2">
                 {upcoming.map((e) => (
-                  <div key={e.id} className="flex items-center justify-between rounded-xl bg-background p-3">
+                  <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-background p-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-extrabold">{e.title}</p>
                       <p className="text-xs text-foreground/70">{e.start.toLocaleString()}</p>
@@ -240,7 +240,7 @@ export default async function DashboardPage() {
             ) : (
               <div className="space-y-2">
                 {recentResources.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between rounded-xl bg-background p-3">
+                  <div key={r.id} className="flex min-w-0 items-center justify-between gap-2 rounded-xl bg-background p-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-extrabold">{r.title}</p>
                       <p className="text-xs text-foreground/70">

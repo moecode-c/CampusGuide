@@ -109,6 +109,26 @@ export function buildObjectKey(fileName: string) {
   return `resources/${crypto.randomUUID()}/${sanitizeFileName(fileName)}`;
 }
 
+/**
+ * The display name for an object key, i.e. the reverse of buildObjectKey.
+ *
+ * decodeURIComponent throws a URIError on a stray "%" or a truncated escape, and
+ * object keys reach us from the client — an unguarded decode turns a malformed
+ * key into a 500 instead of a handled response.
+ */
+export function fileNameFromObjectKey(key: string) {
+  const tail = key.split("/").pop() ?? "file";
+
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(tail);
+  } catch {
+    decoded = tail;
+  }
+
+  return sanitizeFileName(decoded);
+}
+
 export function publicUrlFor(key: string) {
   const { publicBaseUrl } = readConfig();
   const encoded = key.split("/").map(encodeURIComponent).join("/");

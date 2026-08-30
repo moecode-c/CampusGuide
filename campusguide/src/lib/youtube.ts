@@ -43,3 +43,27 @@ export function youtubeEmbedUrl(videoId: string) {
 export function youtubeThumbnail(videoId: string) {
   return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 }
+
+/**
+ * What an admin actually pastes: a watch/share/embed/shorts URL, a URL with the
+ * scheme left off, or the bare 11-character id on its own. Returns the canonical
+ * id, or null when the input is not a YouTube video.
+ */
+export function youtubeIdFromInput(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  // A bare id, pasted straight out of a URL bar.
+  if (/^[A-Za-z0-9_-]{11}$/.test(trimmed)) return trimmed;
+
+  const direct = youtubeVideoId(trimmed);
+  if (direct) return direct;
+
+  // "youtu.be/xxxx" and "youtube.com/watch?v=xxxx" are not parseable URLs
+  // without a scheme, and people paste them that way constantly.
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
+    return youtubeVideoId(`https://${trimmed}`);
+  }
+
+  return null;
+}

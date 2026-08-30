@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import { Room } from "../src/server/models/Room";
 import { invalidateRoomsCache } from "../src/server/data/rooms";
+import { ensureSrvDns } from "../src/server/dns";
 
 type SeedRoom = {
   roomCode: string;
@@ -150,11 +151,17 @@ async function main() {
 
   const seed = buildSeed();
 
+  // Atlas SRV URIs need a resolver that answers SRV/TXT; add public fallbacks
+  // when the system one refuses. No-op for a plain mongodb:// host.
+  ensureSrvDns(uri);
+
   await mongoose.connect(uri, {
     dbName: "campusguide",
-    serverSelectionTimeoutMS: 5000,
-    connectTimeoutMS: 5000,
-    socketTimeoutMS: 5000,
+    // Generous compared with localhost: this may be a remote Atlas cluster
+    // doing a cold TLS handshake.
+    serverSelectionTimeoutMS: 30_000,
+    connectTimeoutMS: 30_000,
+    socketTimeoutMS: 45_000,
   });
 
   // Start fresh every time (per request).
@@ -169,6 +176,12 @@ async function main() {
   }
 
   await Room.insertMany(seed, { ordered: true });
+
+  // Dropping the collection above also dropped its indexes, including the unique
+  // one on roomCode. Mongoose's own index build races that drop, so whether they
+  // come back is down to timing — rebuild them explicitly. Without the unique
+  // index the admin UI silently stops rejecting duplicate room codes.
+  await Room.syncIndexes();
 
   invalidateRoomsCache();
 

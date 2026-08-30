@@ -33,7 +33,10 @@ function parseServerEnv(): Env {
     R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,
     R2_BUCKET: process.env.R2_BUCKET,
     R2_PUBLIC_BASE_URL: process.env.R2_PUBLIC_BASE_URL,
-    VERIFY_WHATSAPP_NUMBER: process.env.VERIFY_WHATSAPP_NUMBER,
+    // Falls back to the admin's number rather than being optional in practice.
+    // Left unset, the pending screen silently drops the "Open WhatsApp" button
+    // and a new student is told to send their ID to nobody in particular.
+    VERIFY_WHATSAPP_NUMBER: process.env.VERIFY_WHATSAPP_NUMBER ?? "01022138836",
   };
 
   const parsed = serverSchema.safeParse(raw);

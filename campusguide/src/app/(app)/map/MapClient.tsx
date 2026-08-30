@@ -29,9 +29,6 @@ export function MapClient() {
   const search = useSearchParams();
   const initialRoom = (search.get("room") ?? "").trim().toUpperCase();
 
-  // Base pixel size for the map image. UI further constrains width responsively.
-  const MAP_SIZE = 600;
-
   const [rooms, setRooms] = React.useState<Room[]>([]);
   const [upcoming, setUpcoming] = React.useState<Upcoming[]>([]);
   const [scheduleRoomCodes, setScheduleRoomCodes] = React.useState<string[]>([]);
@@ -46,51 +43,13 @@ export function MapClient() {
 
   const transformRef = React.useRef<ReactZoomPanPinchRef | null>(null);
 
-  const viewportRef = React.useRef<HTMLDivElement | null>(null);
-  const [viewportSize, setViewportSize] = React.useState<{ w: number; h: number }>({ w: 0, h: 0 });
-  React.useEffect(() => {
-    const el = viewportRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      const r = el.getBoundingClientRect();
-      setViewportSize({ w: Math.max(0, r.width), h: Math.max(0, r.height) });
-    });
-    ro.observe(el);
-    const r = el.getBoundingClientRect();
-    setViewportSize({ w: Math.max(0, r.width), h: Math.max(0, r.height) });
-    return () => ro.disconnect();
-  }, []);
-
-  const mapImageRef = React.useRef<HTMLDivElement | null>(null);
-
-  const zoomToSelected = React.useCallback(
-    (room: Room, scale = 3) => {
-      const fn = transformRef.current?.setTransform;
-      if (!fn) return;
-      const vw = viewportSize.w;
-      const vh = viewportSize.h;
-      if (!vw || !vh) return;
-
-      // Use actual rendered size if available, fallback to default
-      const currentMapSize = mapImageRef.current?.getBoundingClientRect().width ?? MAP_SIZE;
-
-      const x = vw / 2 - room.x * currentMapSize * scale;
-      const y = vh / 2 - room.y * currentMapSize * scale;
-      fn(x, y, scale);
-    },
-    [MAP_SIZE, viewportSize.h, viewportSize.w]
-  );
-
-  // React.useEffect(() => {
-  //   if (!selected) return;
-  //   // Auto-center disabled per user request
-  //   // zoomToSelected(selected, 3);
-  // }, [selected, zoomToSelected]);
-
   const reload = React.useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/student/map");
+      // "no-cache" revalidates rather than reading the browser cache: the route
+      // sends max-age=30, and a CSV import calls reload() straight afterwards,
+      // which would otherwise redisplay the pre-import schedule.
+      const res = await fetch("/api/student/map", { cache: "no-cache" });
       const j = await res.json().catch(() => null);
       if (!res.ok) {
         setError(j?.error ?? "Failed to load map data");
@@ -280,7 +239,7 @@ export function MapClient() {
                     <p className="mt-1 text-xs text-foreground/70">
                       Headers: title,type,dayOfWeek,startTime,endTime,roomCode (type = lecture/lab, dayOfWeek = MO..SU, time = HH:mm).
                     </p>
-                    <div className="mt-2 flex items-center gap-2">
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
                       <Input
                         type="file"
                         accept=".csv,text/csv"
@@ -305,11 +264,11 @@ export function MapClient() {
                       upcoming.slice(0, 6).map((e, idx) => (
                         <button
                           key={idx}
-                          className="flex w-full items-center justify-between rounded-xl bg-panel px-3 py-2 text-left hover:bg-panel/80"
+                          className="flex w-full min-w-0 items-center justify-between gap-2 rounded-xl bg-panel px-3 py-2 text-left hover:bg-panel/80"
                           onClick={() => setSelected(rooms.find((r) => r.roomCode === e.roomCode) ?? null)}
                         >
                           <span className="truncate text-sm font-semibold">{e.title}</span>
-                          <span className="text-xs font-extrabold text-primary">{e.roomCode}</span>
+                          <span className="shrink-0 text-xs font-extrabold text-primary">{e.roomCode}</span>
                         </button>
                       ))
                     )}
@@ -331,10 +290,7 @@ export function MapClient() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div
-              ref={viewportRef}
-              className="mx-auto w-full max-w-150 overflow-hidden rounded-2xl border border-foreground/10 bg-background"
-            >
+            <div className="mx-auto w-full max-w-150 overflow-hidden rounded-2xl border border-foreground/10 bg-background">
               <TransformWrapper
                 ref={transformRef}
                 initialScale={1}
@@ -374,7 +330,7 @@ export function MapClient() {
                       wrapperStyle={{ width: "100%", height: "100%" }}
                       contentStyle={{ width: "100%" }}
                     >
-                      <div ref={mapImageRef} className="relative w-full aspect-square bg-muted/20">
+                      <div className="relative w-full aspect-square bg-muted/20">
                         {!mapImgError ? (
                           <Image
                             src={mapSrc}

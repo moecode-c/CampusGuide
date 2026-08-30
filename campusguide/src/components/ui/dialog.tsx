@@ -93,7 +93,7 @@ export function DialogContent({
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm animate-in fade-in duration-200 sm:items-center sm:p-4"
             role="presentation"
             onMouseDown={(e) => {
                 if (e.target === e.currentTarget) setOpen(false);
@@ -103,15 +103,18 @@ export function DialogContent({
                 role="dialog"
                 aria-modal="true"
                 className={cn(
-                    "relative max-h-[90dvh] w-full overflow-y-auto rounded-2xl bg-white p-6 shadow-xl",
-                    "animate-in zoom-in-95 duration-200",
+                    // bg-panel, not bg-white: the app renders dark-only, and a
+                    // caller that passes no background of its own got a white
+                    // sheet. Callers overriding this still win via twMerge.
+                    "relative max-h-[92dvh] w-full min-w-0 overflow-y-auto rounded-t-3xl bg-panel p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-foreground shadow-xl sm:max-w-lg sm:rounded-2xl sm:p-6",
+                    "animate-in slide-in-from-bottom duration-200 sm:zoom-in-95",
                     className
                 )}
             >
                 <button
                     type="button"
                     aria-label="Close"
-                    className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
+                    className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-xl opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                     onClick={() => setOpen(false)}
                 >
                     <span className="sr-only">Close</span>
@@ -129,7 +132,7 @@ export function DialogHeader({
 }: React.HTMLAttributes<HTMLDivElement>) {
     return (
         <div
-            className={cn("flex flex-col space-y-1.5 text-center sm:text-left", className)}
+            className={cn("flex flex-col space-y-1.5 pr-8 text-left", className)}
             {...props}
         />
     );

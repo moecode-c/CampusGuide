@@ -1,5 +1,15 @@
 import { ActivityLog, type ActivityAction } from "@/server/models/ActivityLog";
 import { getRequestIp } from "@/server/security/rateLimit";
+import { ActivityActions } from "@/lib/activityActions";
+
+/** Actions that count toward the mass-deletion rule. */
+const DELETE_ACTIONS = new Set<ActivityAction>([
+  ActivityActions.ResourceDelete,
+  ActivityActions.FolderDelete,
+  ActivityActions.UserDelete,
+  ActivityActions.TeamPostDelete,
+  ActivityActions.VideoCourseDelete,
+]);
 
 type LogInput = {
   action: ActivityAction;
@@ -31,6 +41,13 @@ export async function logActivity(input: LogInput) {
       ip: input.headers ? getRequestIp(input.headers) : undefined,
       createdAt: new Date(),
     });
+
+    // Deletion bursts are detected here rather than at each delete route, so a
+    // new kind of delete is covered the moment it logs itself.
+    if (DELETE_ACTIONS.has(input.action) && input.actor?.id) {
+      const { recordDeletion } = await import("@/server/security/alerts");
+      void recordDeletion({ actorId: input.actor.id, actorName: input.actor.name });
+    }
   } catch (err) {
     console.error("activity log write failed", err);
   }

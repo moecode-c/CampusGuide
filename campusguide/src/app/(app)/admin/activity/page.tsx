@@ -6,6 +6,13 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { ActivityFeed, type ActivityItem } from "@/components/admin/ActivityFeed";
+import { AlertsHistory } from "@/components/admin/AlertsHistory";
+import {
+  ActiveSessionsCard,
+  BlockIpDialog,
+  BlockedIpsCard,
+  useIpBlocks,
+} from "@/components/admin/IpSecurity";
 import { ActivityActions } from "@/lib/activityActions";
 
 /** Grouped so the filter reads as categories rather than a wall of dotted keys. */
@@ -20,6 +27,7 @@ const ACTION_GROUPS: { label: string; actions: { value: string; label: string }[
   {
     label: "Moderation",
     actions: [
+      { value: ActivityActions.UserCreate, label: "Account created by admin" },
       { value: ActivityActions.VerifyApprove, label: "Verified" },
       { value: ActivityActions.VerifyReject, label: "Rejected" },
       { value: ActivityActions.UserBan, label: "Banned" },
@@ -39,6 +47,36 @@ const ACTION_GROUPS: { label: string; actions: { value: string; label: string }[
       { value: ActivityActions.FolderDelete, label: "Folder deleted" },
     ],
   },
+  {
+    label: "Teams",
+    actions: [
+      { value: ActivityActions.TeamPostCreate, label: "Team ad posted" },
+      { value: ActivityActions.TeamPostDelete, label: "Team ad removed" },
+      { value: ActivityActions.TeamPostPurge, label: "Stale team ads cleared" },
+    ],
+  },
+  {
+    label: "Videos",
+    actions: [
+      { value: ActivityActions.VideoCourseCreate, label: "Video course created" },
+      { value: ActivityActions.VideoCourseUpdate, label: "Video course edited" },
+      { value: ActivityActions.VideoCourseDelete, label: "Video course deleted" },
+    ],
+  },
+  {
+    label: "Security",
+    actions: [
+      { value: ActivityActions.SignInFailed, label: "Failed sign-in" },
+      { value: ActivityActions.SignInUnknown, label: "Unknown account tried" },
+      { value: ActivityActions.SignInBanned, label: "Banned account tried" },
+      { value: ActivityActions.RateLimited, label: "Rate limit hit" },
+      { value: ActivityActions.AlertAcknowledged, label: "Alert acknowledged" },
+      { value: ActivityActions.FlagEnabled, label: "Area locked" },
+      { value: ActivityActions.FlagDisabled, label: "Area unlocked" },
+      { value: ActivityActions.IpBlocked, label: "Address blocked" },
+      { value: ActivityActions.IpUnblocked, label: "Address unblocked" },
+    ],
+  },
 ];
 
 export default function AdminActivityPage() {
@@ -47,6 +85,9 @@ export default function AdminActivityPage() {
   const [limit, setLimit] = React.useState("50");
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+
+  const ipBlocks = useIpBlocks();
+  const [blockTarget, setBlockTarget] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -121,16 +162,48 @@ export default function AdminActivityPage() {
         </CardContent>
       </Card>
 
+      <AlertsHistory />
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <ActiveSessionsCard onBlockIp={setBlockTarget} activeIps={ipBlocks.activeIps} />
+        <BlockedIpsCard
+          blocks={ipBlocks.blocks}
+          onUnblock={ipBlocks.unblock}
+          busy={ipBlocks.busy}
+        />
+      </div>
+
+      {ipBlocks.error ? (
+        <p className="rounded-2xl bg-risk/10 px-4 py-3 text-sm font-semibold text-risk">{ipBlocks.error}</p>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">
             {loading ? "Loading…" : `${items.length} event${items.length === 1 ? "" : "s"}`}
           </CardTitle>
+          <CardDescription>
+            Each entry shows the address it came from. Use the block button to refuse it everywhere.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <ActivityFeed items={items} />
+          <ActivityFeed items={items} onBlockIp={setBlockTarget} blockedIps={ipBlocks.activeIps} />
         </CardContent>
       </Card>
+
+      <BlockIpDialog
+        ip={blockTarget}
+        open={blockTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setBlockTarget(null);
+        }}
+        busy={ipBlocks.busy}
+        yourIp={ipBlocks.yourIp}
+        onConfirm={async (input) => {
+          const ok = await ipBlocks.block(input);
+          if (ok) setBlockTarget(null);
+        }}
+      />
     </div>
   );
 }

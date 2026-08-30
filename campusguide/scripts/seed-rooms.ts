@@ -2,6 +2,7 @@ import path from "node:path";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 import { Room } from "../src/server/models/Room";
+import { ensureSrvDns } from "../src/server/dns";
 import { invalidateRoomsCache } from "../src/server/data/rooms";
 
 type SeedRoom = {
@@ -131,11 +132,13 @@ async function main() {
     throw new Error("MONGODB_URI is not set. Put it in .env.local or your environment.");
   }
 
+  ensureSrvDns(uri);
+
   await mongoose.connect(uri, {
     dbName: "campusguide",
-    serverSelectionTimeoutMS: 5000,
-    connectTimeoutMS: 5000,
-    socketTimeoutMS: 5000,
+    serverSelectionTimeoutMS: 30_000,
+    connectTimeoutMS: 30_000,
+    socketTimeoutMS: 45_000,
   });
 
   if (process.env.RESET_ROOMS === "1") {

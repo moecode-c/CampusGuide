@@ -118,7 +118,13 @@ export default function AdminResourcesPage() {
   const replaceInputRef = React.useRef<HTMLInputElement>(null);
   const replaceTargetRef = React.useRef<string | null>(null);
 
+  // Debouncing narrows the window but does not close it: a slow request for
+  // "ab" can still land after a fast one for "abc" and repaint the older
+  // results under the newer query. Only the newest request may write state.
+  const requestSeq = React.useRef(0);
+
   const load = React.useCallback(async () => {
+    const seq = ++requestSeq.current;
     setLoading(true);
     const params = new URLSearchParams();
     if (q.trim()) params.set("q", q.trim());
@@ -127,6 +133,7 @@ export default function AdminResourcesPage() {
     try {
       const res = await fetch(`/api/admin/drive?${params.toString()}`);
       const j = await res.json().catch(() => null);
+      if (seq !== requestSeq.current) return;
       if (!res.ok) {
         setError(j?.error ?? "Failed to load the drive");
         return;
@@ -134,9 +141,9 @@ export default function AdminResourcesPage() {
       setData(j as DriveResponse);
       setError(null);
     } catch {
-      setError("Network error. Check your connection and try again.");
+      if (seq === requestSeq.current) setError("Network error. Check your connection and try again.");
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
   }, [folderId, q]);
 
@@ -157,8 +164,8 @@ export default function AdminResourcesPage() {
     return j;
   }
 
-  /** upload-url -> PUT to R2 -> create the resource row. */
-  async function uploadOne(file: File, targetFolderId: string | null) {
+  /** upload-url -> PUT to R2 -> create the resource row (or repoint `replaceId`). */
+  async function uploadOne(file: File, targetFolderId: string | null, replaceId: string | null) {
     const jobId = `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     setUploads((prev) => [...prev, { id: jobId, name: file.name, progress: 0 }]);
 
@@ -179,8 +186,8 @@ export default function AdminResourcesPage() {
         setJob({ progress: Math.round(f * 100) })
       );
 
-      if (replaceTargetRef.current) {
-        await call(`/api/admin/resources/${replaceTargetRef.current}`, {
+      if (replaceId) {
+        await call(`/api/admin/resources/${replaceId}`, {
           method: "PATCH",
           body: JSON.stringify({ objectKey: signed.key }),
         });
@@ -203,19 +210,27 @@ export default function AdminResourcesPage() {
     }
   }
 
-  async function handleFiles(list: FileList | null) {
+  /**
+   * `replaceId` is passed in rather than read from a ref at upload time.
+   * Cancelling the OS file picker fires no event, so a target left on a ref
+   * would silently turn the *next* ordinary upload into a replace — overwriting
+   * an unrelated resource and deleting its object from R2.
+   */
+  async function handleFiles(list: FileList | null, replaceId: string | null = null) {
     if (!list?.length) return;
     setError(null);
     setBusy(true);
 
     const target = folderId;
     try {
+      // Only one file can replace a resource; any extras are ordinary uploads.
+      let pendingReplaceId = replaceId;
       for (const file of Array.from(list)) {
-        await uploadOne(file, target);
+        await uploadOne(file, target, pendingReplaceId);
+        pendingReplaceId = null;
       }
       await load();
     } finally {
-      replaceTargetRef.current = null;
       setBusy(false);
     }
   }
@@ -340,7 +355,9 @@ export default function AdminResourcesPage() {
             type="file"
             hidden
             onChange={(e) => {
-              handleFiles(e.target.files);
+              const target = replaceTargetRef.current;
+              replaceTargetRef.current = null;
+              handleFiles(e.target.files, target);
               e.target.value = "";
             }}
           />
@@ -456,7 +473,7 @@ export default function AdminResourcesPage() {
                 {data.files.map((it) => {
                   const href = it.kind === "file" ? it.fileUrl : it.externalUrl;
                   return (
-                    <div key={it.id} className="flex items-center justify-between gap-3 rounded-2xl bg-background p-4">
+                    <div key={it.id} className="flex flex-col gap-3 rounded-2xl bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex min-w-0 flex-1 items-center gap-3">
                         {iconFor(it)}
                         <div className="min-w-0">

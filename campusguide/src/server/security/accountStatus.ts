@@ -63,15 +63,53 @@ export async function getAccountState(userId: string): Promise<AccountState | nu
 }
 
 /**
+ * Where this request came from, when it is being served inside a request scope.
+ *
+ * Imported lazily and guarded: `headers()` throws outside a request (a seeding
+ * script, a background task), and presence tracking must never be the thing that
+ * breaks one.
+ */
+async function currentConnection(): Promise<{ ip?: string; userAgent?: string }> {
+  try {
+    const { headers } = await import("next/headers");
+    const h = await headers();
+
+    const forwarded = h.get("x-forwarded-for");
+    const ip = forwarded ? forwarded.split(",")[0]?.trim() : (h.get("x-real-ip") ?? undefined);
+
+    return {
+      ip: ip || undefined,
+      userAgent: h.get("user-agent")?.slice(0, 400) || undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+/**
  * Stamps `lastSeenAt`, throttled to once a minute per user. This is what the
- * DAU/WAU/MAU figures are computed from.
+ * DAU/WAU/MAU figures are computed from, and what the admin "signed in now"
+ * panel reads to show where an account is being used from.
  */
 export async function touchLastSeen(userId: string) {
   if (cacheGet<boolean>(seenKey(userId))) return;
   cacheSet(seenKey(userId), true, SEEN_TTL_MS);
 
   try {
-    await User.updateOne({ _id: userId }, { $set: { lastSeenAt: new Date() } });
+    const { ip, userAgent } = await currentConnection();
+
+    await User.updateOne(
+      { _id: userId },
+      {
+        $set: {
+          lastSeenAt: new Date(),
+          // Only overwrite when we actually learned something, so a background
+          // refresh cannot blank a known address.
+          ...(ip ? { lastIp: ip } : {}),
+          ...(userAgent ? { lastUserAgent: userAgent } : {}),
+        },
+      }
+    );
   } catch (err) {
     // Presence tracking is not worth failing a request over.
     console.error("lastSeenAt update failed", err);

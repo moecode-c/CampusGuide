@@ -9,7 +9,18 @@ import { noStoreJson } from "@/server/httpCache";
 
 // Accept timezone offsets like "+02:00" (FullCalendar sends these).
 const isoDate = z.string().datetime({ offset: true });
-const hhmmTime = z.string().regex(/^\d{2}:\d{2}$/).optional();
+import { ensureCampusTimezone } from "@/server/campusTime";
+
+// setHours() below works in the process's local timezone; pin it to campus time
+// before any of it runs.
+ensureCampusTimezone();
+
+// `\d{2}:\d{2}` alone accepts "99:99", which setHours() would roll over into
+// another day and produce events with a negative or absurd duration.
+const hhmmTime = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Time must be HH:MM (24-hour)")
+  .optional();
 
 function bydayFromDate(d: Date) {
   const map = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"] as const;
@@ -175,9 +186,19 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     });
   }
 
-  // If a recurring event is moved (drag/drop), update its BYDAY to match the new start day.
-  // This makes the whole series move to the new weekday.
-  if (found.isRecurring && found.rrule && update.start instanceof Date && !update.rrule) {
+  // If a recurring event is moved to another weekday, update its BYDAY to match
+  // so the whole series moves with it. Guarded on the weekday actually changing:
+  // a time-only edit also sets `update.start`, and rewriting BYDAY there would
+  // collapse a multi-day series (BYDAY=MO,WE) onto the anchor day and strip any
+  // UNTIL/COUNT bound off it.
+  if (
+    found.isRecurring &&
+    found.rrule &&
+    update.start instanceof Date &&
+    !update.rrule &&
+    found.start &&
+    update.start.getDay() !== new Date(found.start).getDay()
+  ) {
     const byday = bydayFromDate(update.start);
     update.rrule = stripUntilCount(withByDay(found.rrule, byday));
   }

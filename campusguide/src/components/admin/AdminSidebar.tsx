@@ -14,7 +14,11 @@ import {
   LogOut,
   Menu,
   ShieldCheck,
+  SlidersHorizontal,
+  TrendingUp,
   Users,
+  UsersRound,
+  Video,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,7 +39,11 @@ const ITEMS: Item[] = [
   { href: "/admin/users", label: "Users", hint: "Inspect, ban, delete", icon: <Users className="h-5 w-5" /> },
   { href: "/admin/activity", label: "Activity log", hint: "Everything that happened", icon: <Activity className="h-5 w-5" /> },
   { href: "/admin/resources", label: "File storage", hint: "Folders and uploads", icon: <Library className="h-5 w-5" /> },
+  { href: "/admin/teams", label: "Teams board", hint: "Posts and stale clean-up", icon: <UsersRound className="h-5 w-5" /> },
+  { href: "/admin/videos", label: "Videos", hint: "YouTube courses", icon: <Video className="h-5 w-5" /> },
+  { href: "/admin/usage", label: "Usage", hint: "What students open", icon: <TrendingUp className="h-5 w-5" /> },
   { href: "/admin/rooms", label: "Rooms", hint: "Map coordinates", icon: <Database className="h-5 w-5" /> },
+  { href: "/admin/controls", label: "Controls", hint: "Lock areas for students", icon: <SlidersHorizontal className="h-5 w-5" /> },
 ];
 
 function useActive() {
@@ -56,7 +64,24 @@ function PendingBadge({ count }: { count: number }) {
   );
 }
 
-function NavItems({ pending, onNavigate }: { pending: number; onNavigate?: () => void }) {
+/**
+ * Deliberately louder than PendingBadge — red rather than amber, and it pulses.
+ * A verification queue can wait; a break-in attempt should catch the eye from
+ * whatever page the admin is on.
+ */
+function AlertBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      title={`${count} open security alert${count === 1 ? "" : "s"}`}
+      className="ml-auto inline-flex min-w-6 shrink-0 animate-pulse items-center justify-center rounded-full bg-risk px-2 py-0.5 text-xs font-extrabold text-white"
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
+function NavItems({ pending, alerts, onNavigate }: { pending: number; alerts: number; onNavigate?: () => void }) {
   const isActive = useActive();
 
   return (
@@ -89,6 +114,7 @@ function NavItems({ pending, onNavigate }: { pending: number; onNavigate?: () =>
               </span>
             </span>
             {item.href === "/admin/verification" ? <PendingBadge count={pending} /> : null}
+            {item.href === "/admin" ? <AlertBadge count={alerts} /> : null}
           </Link>
         );
       })}
@@ -96,7 +122,7 @@ function NavItems({ pending, onNavigate }: { pending: number; onNavigate?: () =>
   );
 }
 
-function SidebarBody({ pending, onNavigate }: { pending: number; onNavigate?: () => void }) {
+function SidebarBody({ pending, alerts, onNavigate }: { pending: number; alerts: number; onNavigate?: () => void }) {
   const { data } = useSession();
 
   return (
@@ -115,7 +141,7 @@ function SidebarBody({ pending, onNavigate }: { pending: number; onNavigate?: ()
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
         <p className="px-4 pb-2 text-xs font-extrabold uppercase tracking-wider text-foreground/40">Manage</p>
-        <NavItems pending={pending} onNavigate={onNavigate} />
+        <NavItems pending={pending} alerts={alerts} onNavigate={onNavigate} />
       </div>
 
       <div className="shrink-0 space-y-2 border-t border-foreground/10 p-3">
@@ -175,8 +201,41 @@ function usePendingCount() {
   return pending;
 }
 
+/**
+ * Open security alerts, polled faster than the queue badge so an attack in
+ * progress shows up on whatever admin page you happen to be looking at.
+ */
+function useAlertCount() {
+  const [count, setCount] = React.useState(0);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const res = await fetch("/api/admin/alerts");
+        if (!res.ok) return;
+        const j = await res.json();
+        if (!cancelled) setCount(Number(j?.openCount ?? 0));
+      } catch {
+        // Same as the queue badge: a dropped poll is not worth an error.
+      }
+    };
+
+    load();
+    const timer = window.setInterval(load, 20_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  return count;
+}
+
 export function AdminSidebar() {
   const pending = usePendingCount();
+  const alerts = useAlertCount();
   const [open, setOpen] = React.useState(false);
   const pathname = usePathname();
 
@@ -204,12 +263,14 @@ export function AdminSidebar() {
   return (
     <>
       {/* Fixed rail. The admin area has no site navbar, so this owns the full height. */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-80 flex-col border-r border-foreground/10 bg-nav lg:flex">
-        <SidebarBody pending={pending} />
+      {/* Narrower below xl so the content column isn't paying 320px for a rail
+          of six links on a 1440-wide laptop. */}
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-foreground/10 bg-nav lg:flex xl:w-80">
+        <SidebarBody pending={pending} alerts={alerts} />
       </aside>
 
       {/* Compact top bar replaces the site navbar below lg */}
-      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-foreground/10 bg-nav px-4 py-3 lg:hidden">
+      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-foreground/10 bg-nav px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 lg:hidden">
         <Button
           variant="secondary"
           className="h-10 w-10 shrink-0 rounded-2xl p-0"
@@ -250,7 +311,7 @@ export function AdminSidebar() {
             >
               <X className="h-5 w-5" />
             </Button>
-            <SidebarBody pending={pending} onNavigate={() => setOpen(false)} />
+            <SidebarBody pending={pending} alerts={alerts} onNavigate={() => setOpen(false)} />
           </aside>
         </div>
       ) : null}

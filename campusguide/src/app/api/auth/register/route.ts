@@ -14,6 +14,7 @@ import {
   normalizePhone,
   validateMiuIdentity,
 } from "@/lib/miu";
+import { TERMS_VERSION } from "@/lib/terms";
 
 // Messages here are shown verbatim on the register form, so they must read as
 // guidance rather than zod's internal "Too small: expected string…" text.
@@ -33,6 +34,12 @@ const schema = z.object({
     .int("Select your academic year")
     .min(1, "Academic year must be between 1 and 4")
     .max(4, "Academic year must be between 1 and 4"),
+  // Enforced here, not just on the form. A checkbox the server does not check
+  // is decoration — anyone posting straight to this endpoint would skip it, and
+  // the stored consent record would be a lie.
+  acceptTerms: z.literal(true, {
+    error: "You must accept the rules and conditions to create an account",
+  }),
 });
 
 function bad(error: string, status = 400) {
@@ -100,6 +107,10 @@ export async function POST(req: Request) {
       passwordHash,
       role: "student",
       academicYear: parsed.data.academicYear,
+      // Consent is recorded at the moment of creation, with the version of the
+      // wording that was in force.
+      acceptedTermsAt: new Date(),
+      acceptedTermsVersion: TERMS_VERSION,
       // Nobody gets in until an admin has seen their ID photo.
       status: AccountStatuses.Pending,
     });

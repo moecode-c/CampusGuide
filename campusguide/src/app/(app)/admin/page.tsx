@@ -16,6 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import { ActivityFeed, type ActivityItem } from "@/components/admin/ActivityFeed";
+import { SecurityAlerts } from "@/components/admin/SecurityAlerts";
 import { barHeight, densifyDays } from "@/lib/chart";
 
 type Stats = {
@@ -53,13 +54,15 @@ function StatTile({
           : "text-primary";
 
   return (
-    <div className="rounded-2xl border border-foreground/10 bg-background p-4">
+    // Roomier now that the tiles are wide: a 2xl number floating in a 380px
+    // box read as an accident rather than a headline figure.
+    <div className="rounded-2xl border border-foreground/10 bg-background p-6">
       <div className="flex items-center justify-between gap-2">
-        <p className="truncate text-xs font-semibold text-foreground/60">{label}</p>
+        <p className="truncate text-sm font-semibold text-foreground/60">{label}</p>
         <span className={tone}>{icon}</span>
       </div>
-      <p className="mt-2 text-2xl font-extrabold leading-none tracking-tight">{value}</p>
-      {hint ? <p className="mt-1 text-[11px] text-foreground/45">{hint}</p> : null}
+      <p className="mt-3 break-all text-3xl font-extrabold leading-none tracking-tight sm:text-4xl">{value}</p>
+      {hint ? <p className="mt-2 text-xs text-foreground/45">{hint}</p> : null}
     </div>
   );
 }
@@ -160,14 +163,18 @@ export default function AdminOverviewPage() {
 
       {error ? <p className="text-sm font-semibold text-risk">{error}</p> : null}
 
+      {/* Above the verification prompt on purpose: a break-in attempt outranks
+          a queue of ID photos. */}
+      <SecurityAlerts />
+
       {stats && stats.users.pending > 0 ? (
         <Link
           href="/admin/verification"
           className="flex items-center justify-between gap-3 rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 transition hover:bg-warning/15"
         >
-          <span className="flex items-center gap-2 text-sm font-bold">
-            <Clock className="h-4 w-4 text-warning" />
-            {stats.users.pending} account{stats.users.pending === 1 ? "" : "s"} waiting for verification
+          <span className="flex min-w-0 items-center gap-2 text-sm font-bold">
+            <Clock className="h-4 w-4 shrink-0 text-warning" />
+            <span className="min-w-0">{stats.users.pending} account{stats.users.pending === 1 ? "" : "s"} waiting for verification</span>
           </span>
           <ArrowRight className="h-4 w-4 shrink-0" />
         </Link>

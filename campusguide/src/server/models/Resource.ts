@@ -49,6 +49,17 @@ const resourceSchema = new Schema(
     mimeType: { type: String },
 
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+
+    /**
+     * How many times the download link has been handed out.
+     *
+     * Counts issued redirects, not unique students and not completed transfers:
+     * the bucket is public and serves the bytes directly, so this is the last
+     * point the app sees. Good enough for the only question it exists to answer
+     * — which of these files anyone actually opens.
+     */
+    downloadCount: { type: Number, default: 0, index: true },
+    lastDownloadedAt: { type: Date, index: true },
   },
   { timestamps: true }
 );
@@ -58,6 +69,8 @@ resourceSchema.index({ folderId: 1, title: 1 });
 // "newest first" is the default sort for both the drive listing and the
 // dashboard's recent-resources panel; without this Mongo sorts in memory.
 resourceSchema.index({ createdAt: -1 });
+// The usage dashboard reads "busiest first" and "never opened" off this.
+resourceSchema.index({ downloadCount: -1 });
 
 // A link without a URL, or a file without an object key, is unusable in the UI.
 resourceSchema.pre("validate", { document: true, query: false }, function validateKind(this: any) {

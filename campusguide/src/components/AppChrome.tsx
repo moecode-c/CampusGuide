@@ -27,9 +27,9 @@ export function AppChrome({
   if (isAdminArea) return <>{children}</>;
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-dvh min-w-0 flex-col">
       {navbar}
-      <div className="flex-1">{children}</div>
+      <div className="min-w-0 flex-1">{children}</div>
       {footer}
     </div>
   );

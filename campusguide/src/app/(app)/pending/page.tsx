@@ -6,14 +6,27 @@ import { AccountStatuses, User } from "@/server/models/User";
 import { env } from "@/env";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MessageCircle, ShieldAlert, ShieldCheck } from "lucide-react";
+import { CheckCircle2, MessageCircle, ShieldAlert, ShieldCheck } from "lucide-react";
+import { normalizePhone } from "@/lib/miu";
 
-/** Digits only — what wa.me expects in a deep link. */
+/**
+ * wa.me needs the full international number with no plus and no leading zero:
+ * `201022138836`, not `01022138836`. Stripping non-digits alone left the local
+ * leading 0 in place, and that link does not open the chat.
+ */
 function waLink(number: string) {
-  return `https://wa.me/${number.replace(/\D/g, "")}`;
+  const normalized = normalizePhone(number);
+  const digits = (normalized ?? number).replace(/\D/g, "");
+  return `https://wa.me/${digits}`;
 }
 
-export default async function PendingPage() {
+export default async function PendingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ new?: string }>;
+}) {
+  const justRegistered = (await searchParams).new === "1";
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login?next=/pending");
 
@@ -67,6 +80,16 @@ export default async function PendingPage() {
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {justRegistered ? (
+          <p
+            role="status"
+            className="flex items-start gap-2.5 rounded-2xl border border-success/30 bg-success/10 px-4 py-3 text-sm font-bold text-success"
+          >
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            Account created. One step left — send your ID photo to the number below.
+          </p>
+        ) : null}
+
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone="warning">Awaiting verification</Badge>
           {user.miuId ? <Badge tone="neutral">{user.miuId}</Badge> : null}
@@ -81,9 +104,9 @@ export default async function PendingPage() {
         ) : null}
 
         <div className="rounded-2xl bg-background p-5">
-          <p className="flex items-center gap-2 text-sm font-extrabold">
-            <MessageCircle className="h-5 w-5 text-success" />
-            Send a photo of your university ID on WhatsApp
+          <p className="flex items-center gap-2 text-base font-extrabold">
+            <MessageCircle className="h-5 w-5 shrink-0 text-success" />
+            Send a photo of the FRONT of your MIU ID on WhatsApp
           </p>
 
           {whatsapp ? (
@@ -106,7 +129,7 @@ export default async function PendingPage() {
           )}
 
           <ol className="mt-5 list-decimal space-y-1.5 pl-5 text-sm text-foreground/80">
-            <li>Take a clear photo of your MIU student ID card.</li>
+            <li>Take a clear photo of the front of your MIU student ID card.</li>
             <li>
               Send it to the number above, along with your student ID{" "}
               {user.miuId ? <span className="font-semibold">({user.miuId})</span> : null}.

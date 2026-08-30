@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   MapPin,
   Library,
+  Users,
   Video,
   HelpCircle,
   Shield,
@@ -23,6 +24,7 @@ import {
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { FlagKeys } from "@/lib/flags";
 
 /**
  * Section matching, not exact matching: /admin/users should light up "Admin",
@@ -151,11 +153,39 @@ export function Navbar() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [mobileOpen]);
 
+  // Locked areas drop out of the navbar for students. Admins keep the link,
+  // since they are the ones who need to get in and fix whatever is broken.
+  const [lockedKeys, setLockedKeys] = React.useState<Record<string, boolean>>({});
+
+  React.useEffect(() => {
+    if (!authed) return;
+    let cancelled = false;
+
+    fetch("/api/student/flags")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled && j?.locked) setLockedKeys(j.locked as Record<string, boolean>);
+      })
+      .catch(() => {
+        // Failing open just means the link stays visible and the page itself
+        // shows the notice — strictly better than hiding it on a network blip.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authed, pathname]);
+
+  const resourcesLocked = Boolean(lockedKeys[FlagKeys.ResourcesLocked]) && !isAdmin;
+
   const links = [
     { href: authed ? "/dashboard" : "/", label: authed ? "Dashboard" : "Home", icon: <LayoutDashboard className="h-4 w-4" /> },
     { href: gate("/attendance"), label: "Attendance", icon: <ClipboardCheck className="h-4 w-4" /> },
     { href: gate("/calendar"), label: "Calendar", icon: <CalendarDays className="h-4 w-4" /> },
-    { href: gate("/resources"), label: "Resources", icon: <Library className="h-4 w-4" /> },
+    ...(resourcesLocked
+      ? []
+      : [{ href: gate("/resources"), label: "Resources", icon: <Library className="h-4 w-4" /> }]),
+    { href: gate("/teams"), label: "Teams", icon: <Users className="h-4 w-4" /> },
     { href: gate("/videos"), label: "Videos", icon: <Video className="h-4 w-4" /> },
     { href: gate("/faq"), label: "FAQ", icon: <HelpCircle className="h-4 w-4" /> },
     { href: gate("/map"), label: "Map", icon: <MapPin className="h-4 w-4" /> },
@@ -170,14 +200,16 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-foreground/10 bg-nav/95 backdrop-blur supports-[backdrop-filter]:bg-nav/80">
-      <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
+      <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:gap-3 sm:px-4">
         {/* shrink-0 is load-bearing: without it flexbox crushes the brand to
             nothing rather than letting the nav overflow. */}
-        <Link href="/" className="flex shrink-0 items-center gap-2">
+        <Link href="/" className="flex min-w-0 shrink-0 items-center gap-2">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-primary text-white shadow-sm">
             <GraduationCap className="h-5 w-5" />
           </span>
-          <span className="text-base font-extrabold tracking-tight text-foreground">CampusGuide</span>
+          <span className="truncate text-base font-extrabold tracking-tight text-foreground max-[360px]:hidden">
+            CampusGuide
+          </span>
         </Link>
 
         <nav className="ml-auto hidden min-w-0 items-center gap-0.5 xl:flex">

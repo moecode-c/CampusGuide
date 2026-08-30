@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono, Oxanium, Press_Start_2P } from "next/font/google";
 import "./globals.css";
 import { AppSessionProvider } from "@/components/SessionProvider";
@@ -33,9 +33,11 @@ export const metadata: Metadata = {
   },
 };
 
-export const viewport: Metadata["viewport"] = {
+export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#01051a",
 };
 
 export default function RootLayout({
@@ -48,7 +50,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistDisplay.variable} ${geistMono.variable} antialiased`}>
         <CursorGlow />
         <AppSessionProvider>
-          <div className="min-h-screen bg-background text-foreground">
+          <div className="min-h-dvh min-w-0 overflow-x-clip bg-background text-foreground">
             <AppChrome navbar={<Navbar />} footer={<Footer />}>
               {children}
             </AppChrome>

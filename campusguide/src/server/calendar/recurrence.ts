@@ -1,7 +1,15 @@
+import { ensureCampusTimezone } from "@/server/campusTime";
+
 /**
  * Weekly (BYDAY) recurrence expansion shared by the calendar, map, attendance
  * and dashboard routes, which previously each carried their own copy.
+ *
+ * Every calculation below is in the process's local timezone, which is only
+ * correct while that is campus time — see server/campusTime.ts for what goes
+ * wrong on a UTC host when Egypt's DST ends.
  */
+
+ensureCampusTimezone();
 
 export type RecurringEventLike = {
   start: Date | string;

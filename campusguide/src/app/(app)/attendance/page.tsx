@@ -4,329 +4,566 @@ import * as React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { AlertTriangle, Check, Cloud, CloudOff, Loader2, Trash2, TriangleAlert } from "lucide-react";
+import { cn } from "@/lib/cn";
+import {
+  LIMITS,
+  MAX_ABSENCE_PERCENT,
 
-function toInt(value: string) {
+  summarizeCourse,
+  totalSessions,
+  type AttendanceCourse,
+  type SessionKind,
+} from "@/lib/attendance";
+
+const LEGACY_KEY = "cg:attendance:courses:v1";
+const MIGRATED_KEY = "cg:attendance:migrated:v2";
+
+function toInt(value: string, fallback = 0) {
   const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
+  if (!Number.isFinite(n)) return fallback;
   return Math.max(0, Math.floor(n));
 }
 
-type CourseAttendance = {
-  id: string;
-  name: string;
-  weeks: number;
-  lecturesPerWeek: number;
-  hasLab: boolean;
-  labsPerWeek: number;
-  missedLectures: number;
-  missedLabs: number;
-  createdAt: number;
-  updatedAt: number;
-};
+/**
+ * One checkbox per absence, not per week.
+ *
+ * A student tracks "how many of my allowed absences have I used", and does not
+ * know or care which calendar week a box stands for. So the grid shows the
+ * allowance itself — three boxes when you are allowed three — and only grows
+ * past that when the allowance is actually exceeded.
+ */
+function AbsenceGrid({
+  kind,
+  total,
+  allowed,
+  missed,
+  disabled,
+  onToggle,
+}: {
+  kind: SessionKind;
+  total: number;
+  allowed: number;
+  missed: number[];
+  disabled: boolean;
+  onToggle: (index: number) => void;
+}) {
+  if (total === 0) {
+    return <p className="text-sm text-foreground/55">No {kind} sessions for this course.</p>;
+  }
 
-const STORAGE_KEY = "cg:attendance:courses:v1";
+  const missedSet = new Set(missed);
 
-function computeAllowed(total: number, maxAbsencePercent: number) {
-  return Math.floor((total * maxAbsencePercent) / 100);
+  // Every ticked box must render. Sizing from the allowance alone could hide a
+  // tick at a higher index, which would count against the student with no box
+  // on screen to untick — the exact failure this page must never have.
+  const highestTicked = missed.length > 0 ? Math.max(...missed) : -1;
+  const visible = Math.min(total, Math.max(allowed, highestTicked + 2));
+
+  return (
+    <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+      {Array.from({ length: visible }, (_, i) => {
+        const checked = missedSet.has(i);
+        const overLimit = i >= allowed;
+
+        return (
+          <label
+            key={i}
+            className={cn(
+              "flex cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm transition-colors",
+              checked
+                ? "border-risk/50 bg-risk/15 font-semibold text-risk"
+                : overLimit
+                  ? "border-risk/25 border-dashed bg-background text-foreground/60 hover:border-risk/45"
+                  : "border-foreground/12 bg-background hover:border-foreground/25",
+              disabled && "cursor-not-allowed opacity-60"
+            )}
+          >
+            <input
+              type="checkbox"
+              className="h-4 w-4 shrink-0 accent-risk"
+              checked={checked}
+              disabled={disabled}
+              onChange={() => onToggle(i)}
+              aria-label={
+                overLimit
+                  ? `${kind} absence ${i + 1} — over your allowance`
+                  : `${kind} absence ${i + 1} of ${allowed} allowed`
+              }
+            />
+            <span className="truncate">
+              Absence {i + 1}
+              {overLimit ? <span className="ml-1 text-xs font-bold text-risk">over</span> : null}
+            </span>
+          </label>
+        );
+      })}
+    </div>
+  );
 }
 
 export default function AttendancePage() {
-  const MAX_ABSENCE_PERCENT = 25;
+  const [courses, setCourses] = React.useState<AttendanceCourse[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(0);
+  const [error, setError] = React.useState<string | null>(null);
 
   const [courseName, setCourseName] = React.useState("");
-  const [weeks, setWeeks] = React.useState("10");
+  const [weeks, setWeeks] = React.useState("12");
   const [lecturesPerWeek, setLecturesPerWeek] = React.useState("2");
   const [hasLab, setHasLab] = React.useState(true);
   const [labsPerWeek, setLabsPerWeek] = React.useState("1");
 
-  const [courses, setCourses] = React.useState<CourseAttendance[]>([]);
-  const [hasHydrated, setHasHydrated] = React.useState(false);
-
-  React.useEffect(() => {
+  const load = React.useCallback(async () => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as CourseAttendance[];
-      if (Array.isArray(parsed)) setCourses(parsed);
+      const res = await fetch("/api/student/attendance-courses");
+      const j = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(j?.error ?? "Could not load your courses.");
+        return null;
+      }
+      setCourses(j.courses as AttendanceCourse[]);
+      setError(null);
+      return j.courses as AttendanceCourse[];
     } catch {
-      // ignore
+      setError("Network error — your attendance could not be loaded. Do not rely on this page until it does.");
+      return null;
     } finally {
-      setHasHydrated(true);
+      setLoading(false);
     }
   }, []);
 
+  // One-off lift of anything still sitting in localStorage from the old
+  // device-local version, so nobody loses a term's worth of ticks.
   React.useEffect(() => {
-    if (!hasHydrated) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(courses));
-    } catch {
-      // ignore
-    }
-  }, [courses, hasHydrated]);
+    let cancelled = false;
 
-  const weeksN = toInt(weeks);
-  const lecturesPerWeekN = toInt(lecturesPerWeek);
-  const labsPerWeekN = hasLab ? toInt(labsPerWeek) : 0;
+    (async () => {
+      const existing = await load();
+      if (cancelled || !existing || existing.length > 0) return;
+      if (localStorage.getItem(MIGRATED_KEY)) return;
 
-  const previewTotalLectures = weeksN * lecturesPerWeekN;
-  const previewTotalLabs = weeksN * labsPerWeekN;
+      try {
+        const raw = localStorage.getItem(LEGACY_KEY);
+        localStorage.setItem(MIGRATED_KEY, "1");
+        if (!raw) return;
 
-  const previewAllowedMissedLectures = computeAllowed(previewTotalLectures, MAX_ABSENCE_PERCENT);
-  const previewAllowedMissedLabs = computeAllowed(previewTotalLabs, MAX_ABSENCE_PERCENT);
+        const legacy = JSON.parse(raw) as Array<Record<string, unknown>>;
+        if (!Array.isArray(legacy) || legacy.length === 0) return;
 
-  function upsertCourse() {
+        for (const c of legacy) {
+          const w = Number(c.weeks) || 1;
+          const lpw = Number(c.lecturesPerWeek) || 0;
+          const lab = Boolean(c.hasLab);
+          const labpw = lab ? Number(c.labsPerWeek) || 0 : 0;
+
+          // The old format stored only a count. The specific sessions are
+          // unknowable, so the first N are ticked — the totals stay correct and
+          // the student can move them if it matters.
+          const nLect = Math.min(Number(c.missedLectures) || 0, totalSessions(w, lpw));
+          const nLab = Math.min(Number(c.missedLabs) || 0, totalSessions(w, labpw));
+
+          await fetch("/api/student/attendance-courses", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: String(c.name ?? "Untitled").slice(0, LIMITS.nameMax),
+              weeks: Math.min(Math.max(w, LIMITS.weeks.min), LIMITS.weeks.max),
+              lecturesPerWeek: Math.min(lpw, LIMITS.perWeek.max),
+              hasLab: lab,
+              labsPerWeek: Math.min(labpw, LIMITS.perWeek.max),
+              missedLectures: Array.from({ length: nLect }, (_, i) => i),
+              missedLabs: Array.from({ length: nLab }, (_, i) => i),
+            }),
+          });
+        }
+
+        if (!cancelled) await load();
+      } catch {
+        // A failed migration leaves localStorage untouched and the server empty;
+        // nothing is destroyed either way.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [load]);
+
+  async function addCourse() {
     const name = courseName.trim();
     if (!name) return;
 
-    const now = Date.now();
-    setCourses((prev) => {
-      const existing = prev.find((c) => c.name.toLowerCase() === name.toLowerCase());
-      if (existing) {
-        return prev.map((c) =>
-          c.id === existing.id
-            ? {
-                ...c,
-                name,
-                weeks: weeksN,
-                lecturesPerWeek: lecturesPerWeekN,
-                hasLab,
-                labsPerWeek: labsPerWeekN,
-                updatedAt: now,
-              }
-            : c
-        );
+    setSaving((n) => n + 1);
+    try {
+      const res = await fetch("/api/student/attendance-courses", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name,
+          weeks: Math.min(Math.max(toInt(weeks, 12), LIMITS.weeks.min), LIMITS.weeks.max),
+          lecturesPerWeek: Math.min(toInt(lecturesPerWeek), LIMITS.perWeek.max),
+          hasLab,
+          labsPerWeek: hasLab ? Math.min(toInt(labsPerWeek), LIMITS.perWeek.max) : 0,
+        }),
+      });
+      const j = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(j?.error ?? "Could not save that course.");
+        return;
+      }
+      setCourseName("");
+      setError(null);
+      await load();
+    } catch {
+      setError("Network error — the course was not saved.");
+    } finally {
+      setSaving((n) => n - 1);
+    }
+  }
+
+  /**
+   * Ticks a session. The server returns the authoritative course, which
+   * replaces the optimistic state — so a rejected or partial write can never
+   * leave a tick showing that was not actually recorded.
+   */
+  async function toggle(course: AttendanceCourse, kind: SessionKind, index: number) {
+    setSaving((n) => n + 1);
+
+    const key = kind === "lecture" ? "missedLectures" : "missedLabs";
+    const before = course[key];
+    // Decide the desired state here and send it explicitly. The server then
+    // performs one atomic add/remove instead of a read-flip-write, so two fast
+    // ticks cannot overwrite each other and a retry is harmless.
+    const absent = !before.includes(index);
+    const optimistic = absent
+      ? [...before, index].sort((a, b) => a - b)
+      : before.filter((i) => i !== index);
+
+    setCourses((prev) => prev.map((c) => (c.id === course.id ? { ...c, [key]: optimistic } : c)));
+
+    try {
+      const res = await fetch(`/api/student/attendance-courses/${course.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ set: { kind, index, absent } }),
+      });
+      const j = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        // Put it back exactly as it was and say so loudly.
+        setCourses((prev) => prev.map((c) => (c.id === course.id ? { ...c, [key]: before } : c)));
+        setError(j?.error ?? "That change was NOT saved. Check the box again.");
+        return;
       }
 
-      const id = (globalThis.crypto?.randomUUID?.() as string | undefined) ?? `${now}-${Math.random().toString(16).slice(2)}`;
-      const next: CourseAttendance = {
-        id,
-        name,
-        weeks: weeksN,
-        lecturesPerWeek: lecturesPerWeekN,
-        hasLab,
-        labsPerWeek: labsPerWeekN,
-        missedLectures: 0,
-        missedLabs: 0,
-        createdAt: now,
-        updatedAt: now,
-      };
-      return [next, ...prev];
-    });
+      setCourses((prev) => prev.map((c) => (c.id === course.id ? (j.course as AttendanceCourse) : c)));
+      setError(null);
+    } catch {
+      setCourses((prev) => prev.map((c) => (c.id === course.id ? { ...c, [key]: before } : c)));
+      setError("Network error — that change was NOT saved. Check the box again.");
+    } finally {
+      setSaving((n) => n - 1);
+    }
   }
 
-  function removeCourse(id: string) {
-    setCourses((prev) => prev.filter((c) => c.id !== id));
-  }
+  async function removeCourse(course: AttendanceCourse) {
+    if (!confirm(`Delete "${course.name}" and everything recorded against it?`)) return;
 
-  function adjustMissed(id: string, kind: "lecture" | "lab", delta: number) {
-    const now = Date.now();
-    setCourses((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c;
-        if (kind === "lecture") {
-          const missedLectures = Math.max(0, (c.missedLectures ?? 0) + delta);
-          return { ...c, missedLectures, updatedAt: now };
-        }
-        const missedLabs = Math.max(0, (c.missedLabs ?? 0) + delta);
-        return { ...c, missedLabs, updatedAt: now };
-      })
-    );
-  }
-
-  function loadCourseIntoForm(c: CourseAttendance) {
-    setCourseName(c.name);
-    setWeeks(String(c.weeks));
-    setLecturesPerWeek(String(c.lecturesPerWeek));
-    setHasLab(Boolean(c.hasLab));
-    setLabsPerWeek(String(c.labsPerWeek ?? 0));
+    setSaving((n) => n + 1);
+    try {
+      const res = await fetch(`/api/student/attendance-courses/${course.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        setError("Could not delete that course.");
+        return;
+      }
+      await load();
+    } catch {
+      setError("Network error — nothing was deleted.");
+    } finally {
+      setSaving((n) => n - 1);
+    }
   }
 
   return (
-    <div className="space-y-2">
-      <h1 className="text-2xl font-extrabold tracking-tight">Attendance</h1>
-      <p className="text-sm text-foreground/70">
-        Calculates how many lectures/labs you can miss before exceeding {MAX_ABSENCE_PERCENT}% absence (automatic fail). Fractions are rounded down.
-      </p>
+    <div className="space-y-6">
+      {/*
+        The whole point of this banner: the page is an arithmetic aid over
+        numbers the student typed in themselves. It has no connection to the
+        university's records and cannot know about excuses, cancelled sessions
+        or corrections.
+      */}
+      <section
+        role="alert"
+        className="rounded-3xl border-2 border-risk/60 bg-risk/10 p-4 sm:p-8"
+      >
+        <div className="flex items-start gap-3 sm:gap-4">
+          <TriangleAlert className="mt-1 h-8 w-8 shrink-0 text-risk sm:h-12 sm:w-12" />
+          <div className="min-w-0 space-y-3">
+            <h2 className="text-lg font-extrabold uppercase leading-tight tracking-tight text-risk sm:text-2xl md:text-4xl">
+              Using this is your own responsibility
+            </h2>
+            <p className="text-base font-bold leading-snug sm:text-xl">
+              If you get dropped because you did not calculate your attendance correctly, that is
+              your responsibility — not CampusGuide&apos;s.
+            </p>
+            <p className="text-sm text-foreground/75 sm:text-base">
+              These numbers come from what you typed in and the boxes you ticked. This page is not
+              connected to the university&apos;s attendance records. Always confirm your real
+              standing with your professor or student affairs before relying on it.
+            </p>
+          </div>
+        </div>
+      </section>
 
-      <div className="grid gap-6 pt-4 grid-cols-1 lg:grid-cols-5">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Course inputs</CardTitle>
-            <CardDescription>Create a course and track missed lectures/labs.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="text-xs font-semibold text-foreground/70">Course name</div>
-              <Input value={courseName} onChange={(e) => setCourseName(e.target.value)} placeholder="e.g., CS101" />
-            </div>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight">Attendance</h1>
+          <p className="text-sm text-foreground/70">
+            Tick a box for every session you missed. You are barred past {MAX_ABSENCE_PERCENT}%
+            absence; the allowance is rounded down.
+          </p>
+        </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <div className="text-xs font-semibold text-foreground/70">Weeks</div>
-                <Input type="number" min={0} value={weeks} onChange={(e) => setWeeks(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <div className="text-xs font-semibold text-foreground/70">Lectures / week</div>
-                <Input type="number" min={0} value={lecturesPerWeek} onChange={(e) => setLecturesPerWeek(e.target.value)} />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-foreground/80">
-                <span className="text-primary">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-current"
-                    checked={hasLab}
-                    onChange={(e) => setHasLab(e.target.checked)}
-                  />
-                </span>
-                Has lab
-              </label>
-
-              {hasLab ? (
-                <div className="flex-1">
-                  <div className="text-xs font-semibold text-foreground/70">Labs / week</div>
-                  <Input type="number" min={0} value={labsPerWeek} onChange={(e) => setLabsPerWeek(e.target.value)} />
-                </div>
-              ) : null}
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <Button type="button" variant="secondary" onClick={upsertCourse} disabled={!courseName.trim()}>
-                Save course
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setCourseName("");
-                  setWeeks("10");
-                  setLecturesPerWeek("2");
-                  setHasLab(true);
-                  setLabsPerWeek("1");
-                }}
-              >
-                Reset
-              </Button>
-            </div>
-
-            <div className="rounded-2xl bg-background p-4">
-              <div className="text-xs font-semibold text-foreground/70">Preview (25% rule)</div>
-              <div className="mt-2 space-y-1 text-sm text-foreground/75">
-                <div>
-                  Total lectures: <span className="font-extrabold text-foreground">{previewTotalLectures}</span> • Max missed: <span className="font-extrabold text-foreground">{previewAllowedMissedLectures}</span>
-                </div>
-                {hasLab ? (
-                  <div>
-                    Total labs: <span className="font-extrabold text-foreground">{previewTotalLabs}</span> • Max missed: <span className="font-extrabold text-foreground">{previewAllowedMissedLabs}</span>
-                  </div>
-                ) : (
-                  <div className="text-foreground/60">No labs for this course.</div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Saved courses</CardTitle>
-            <CardDescription>Track missed lectures/labs and see what you still can miss.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {courses.length === 0 ? (
-              <div className="text-sm text-foreground/70">No saved courses yet. Add one on the left.</div>
-            ) : (
-              <div className="grid gap-3 md:grid-cols-2">
-                {courses.map((c) => {
-                  const totalLectures = (c.weeks ?? 0) * (c.lecturesPerWeek ?? 0);
-                  const totalLabs = (c.weeks ?? 0) * (c.labsPerWeek ?? 0);
-
-                  const allowedLectures = computeAllowed(totalLectures, MAX_ABSENCE_PERCENT);
-                  const allowedLabs = computeAllowed(totalLabs, MAX_ABSENCE_PERCENT);
-
-                  const remainingLectures = Math.max(0, allowedLectures - (c.missedLectures ?? 0));
-                  const remainingLabs = Math.max(0, allowedLabs - (c.missedLabs ?? 0));
-
-                  return (
-                    <div key={c.id} className="rounded-2xl bg-background p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-extrabold text-foreground">{c.name}</div>
-                          <div className="text-xs text-foreground/70">
-                            {c.weeks} weeks • {c.lecturesPerWeek}/wk lectures{c.hasLab ? ` • ${c.labsPerWeek}/wk labs` : ""}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button type="button" variant="ghost" className="h-8 px-2" onClick={() => loadCourseIntoForm(c)}>
-                            Edit
-                          </Button>
-                          <Button type="button" variant="ghost" className="h-8 px-2 text-risk" onClick={() => removeCourse(c.id)}>
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 grid gap-2">
-                        <div className="rounded-xl border border-foreground/10 bg-nav p-3">
-                          <div className="flex items-center justify-between gap-2">
-                            <div>
-                              <div className="text-xs font-semibold text-foreground/70">Lectures</div>
-                              <div className="text-sm text-foreground/80">
-                                Total: <span className="font-extrabold text-foreground">{totalLectures}</span> • Allowed missed: <span className="font-extrabold text-foreground">{allowedLectures}</span>
-                              </div>
-                              <div className="text-sm text-foreground/80">
-                                Missed: <span className="font-extrabold text-foreground">{c.missedLectures ?? 0}</span> • Remaining: <span className="font-extrabold text-success">{remainingLectures}</span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button type="button" variant="secondary" className="h-9 px-3" onClick={() => adjustMissed(c.id, "lecture", +1)}>
-                                Miss +1
-                              </Button>
-                              <Button type="button" variant="ghost" className="h-9 px-3" onClick={() => adjustMissed(c.id, "lecture", -1)} disabled={(c.missedLectures ?? 0) === 0}>
-                                Undo
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {c.hasLab ? (
-                          <div className="rounded-xl border border-foreground/10 bg-nav p-3">
-                            <div className="flex items-center justify-between gap-2">
-                              <div>
-                                <div className="text-xs font-semibold text-foreground/70">Labs</div>
-                                <div className="text-sm text-foreground/80">
-                                  Total: <span className="font-extrabold text-foreground">{totalLabs}</span> • Allowed missed: <span className="font-extrabold text-foreground">{allowedLabs}</span>
-                                </div>
-                                <div className="text-sm text-foreground/80">
-                                  Missed: <span className="font-extrabold text-foreground">{c.missedLabs ?? 0}</span> • Remaining: <span className="font-extrabold text-success">{remainingLabs}</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Button type="button" variant="secondary" className="h-9 px-3" onClick={() => adjustMissed(c.id, "lab", +1)}>
-                                  Miss +1
-                                </Button>
-                                <Button type="button" variant="ghost" className="h-9 px-3" onClick={() => adjustMissed(c.id, "lab", -1)} disabled={(c.missedLabs ?? 0) === 0}>
-                                  Undo
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="rounded-xl border border-foreground/10 bg-nav p-3 text-sm text-foreground/70">
-                            This course has no labs.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Saving state is visible, because a silent failure here is the
+            dangerous one. */}
+        <p className="flex items-center gap-2 text-sm font-semibold">
+          {saving > 0 ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin text-foreground/60" />
+              <span className="text-foreground/60">Saving…</span>
+            </>
+          ) : error ? (
+            <>
+              <CloudOff className="h-4 w-4 text-risk" />
+              <span className="text-risk">Not saved</span>
+            </>
+          ) : (
+            <>
+              <Cloud className="h-4 w-4 text-success" />
+              <span className="text-success">Saved to your account</span>
+            </>
+          )}
+        </p>
       </div>
+
+      {error ? (
+        <p className="rounded-2xl border border-risk/40 bg-risk/10 px-4 py-3 text-sm font-bold text-risk">
+          {error}
+        </p>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Add a course</CardTitle>
+          <CardDescription>
+            Saving a name that already exists updates that course instead of creating a second one.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <label className="space-y-1.5 xl:col-span-2">
+              <span className="text-sm font-semibold">Course name</span>
+              <Input
+                value={courseName}
+                onChange={(e) => setCourseName(e.target.value)}
+                placeholder="e.g. Digital Logic Design"
+                maxLength={LIMITS.nameMax}
+              />
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-semibold">Weeks</span>
+              <Input
+                type="number"
+                min={LIMITS.weeks.min}
+                max={LIMITS.weeks.max}
+                value={weeks}
+                onChange={(e) => setWeeks(e.target.value)}
+              />
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-semibold">Lectures / week</span>
+              <Input
+                type="number"
+                min={0}
+                max={LIMITS.perWeek.max}
+                value={lecturesPerWeek}
+                onChange={(e) => setLecturesPerWeek(e.target.value)}
+              />
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-semibold">Labs / week</span>
+              <Input
+                type="number"
+                min={0}
+                max={LIMITS.perWeek.max}
+                value={labsPerWeek}
+                disabled={!hasLab}
+                onChange={(e) => setLabsPerWeek(e.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            <label className="flex cursor-pointer items-center gap-2.5 text-sm font-semibold">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-primary"
+                checked={hasLab}
+                onChange={(e) => setHasLab(e.target.checked)}
+              />
+              This course has labs
+            </label>
+            <Button onClick={addCourse} disabled={!courseName.trim() || saving > 0}>
+              <Check className="h-4 w-4" />
+              Save course
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {loading ? (
+        <p className="py-10 text-sm text-foreground/60">Loading your courses…</p>
+      ) : courses.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-sm font-semibold">No courses yet.</p>
+            <p className="mt-1 text-sm text-foreground/60">Add one above to start ticking sessions.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-5">
+          {courses.map((course) => {
+            const s = summarizeCourse(course);
+            const lectureTotal = totalSessions(course.weeks, course.lecturesPerWeek);
+            const labTotal = course.hasLab ? totalSessions(course.weeks, course.labsPerWeek) : 0;
+
+            // Sitting exactly on the allowance: not barred, but one more session
+            // does it. Distinct from "1 left", which the badge used to conflate.
+            const atMax =
+              s.status !== "barred" &&
+              [s.lectures, ...(s.labs ? [s.labs] : [])].some((p) => p.allowed > 0 && p.remaining === 0);
+
+            return (
+              <Card
+                key={course.id}
+                className={cn(
+                  s.status === "barred" && "border-risk/50",
+                  s.status === "warning" && "border-warning/40"
+                )}
+              >
+                <CardHeader>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <CardTitle className="flex flex-wrap items-center gap-2">
+                        {course.name}
+                        {/* The old label said "One left" for any warning state,
+                            including zero remaining — it read "One left" on a
+                            card that also said "0 more allowed". */}
+                        {s.status === "barred" ? (
+                          <Badge tone="risk">Over the limit</Badge>
+                        ) : atMax ? (
+                          <Badge tone="warning">Max absences</Badge>
+                        ) : s.status === "warning" ? (
+                          <Badge tone="warning">1 left</Badge>
+                        ) : (
+                          <Badge tone="success">Safe</Badge>
+                        )}
+                      </CardTitle>
+                      <CardDescription>
+                        {course.weeks} weeks · {course.lecturesPerWeek}/wk lectures
+                        {course.hasLab ? ` · ${course.labsPerWeek}/wk labs` : ""}
+                      </CardDescription>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="hover:text-risk"
+                      onClick={() => removeCourse(course)}
+                      disabled={saving > 0}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </Button>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-6">
+                  {s.status === "barred" ? (
+                    <p className="flex items-center gap-2 rounded-xl border border-risk/40 bg-risk/10 px-4 py-3 text-sm font-bold text-risk">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      You are past {MAX_ABSENCE_PERCENT}% in this course. Speak to your professor.
+                    </p>
+                  ) : null}
+
+                  <section className="space-y-3">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <h3 className="text-sm font-extrabold uppercase tracking-wide text-foreground/70">
+                        Lectures
+                      </h3>
+                      <p className="text-sm">
+                        <span className="font-extrabold">{s.lectures.missed}</span>
+                        <span className="text-foreground/55"> of {s.lectures.total} missed · </span>
+                        <span
+                          className={cn(
+                            "font-extrabold",
+                            s.lectures.barred ? "text-risk" : "text-success"
+                          )}
+                        >
+                          {s.lectures.barred
+                            ? "over the limit"
+                            : `${s.lectures.remaining} more allowed`}
+                        </span>
+                        <span className="text-foreground/55"> (max {s.lectures.allowed})</span>
+                      </p>
+                    </div>
+                    <AbsenceGrid
+                      kind="lecture"
+                      total={lectureTotal}
+                      allowed={s.lectures.allowed}
+                      missed={course.missedLectures}
+                      disabled={saving > 0}
+                      onToggle={(i) => toggle(course, "lecture", i)}
+                    />
+                  </section>
+
+                  {course.hasLab && s.labs ? (
+                    <section className="space-y-3">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <h3 className="text-sm font-extrabold uppercase tracking-wide text-foreground/70">
+                          Labs
+                        </h3>
+                        <p className="text-sm">
+                          <span className="font-extrabold">{s.labs.missed}</span>
+                          <span className="text-foreground/55"> of {s.labs.total} missed · </span>
+                          <span
+                            className={cn(
+                              "font-extrabold",
+                              s.labs.barred ? "text-risk" : "text-success"
+                            )}
+                          >
+                            {s.labs.barred ? "over the limit" : `${s.labs.remaining} more allowed`}
+                          </span>
+                          <span className="text-foreground/55"> (max {s.labs.allowed})</span>
+                        </p>
+                      </div>
+                      <AbsenceGrid
+                        kind="lab"
+                        total={labTotal}
+                        allowed={s.labs.allowed}
+                        missed={course.missedLabs}
+                        disabled={saving > 0}
+                        onToggle={(i) => toggle(course, "lab", i)}
+                      />
+                    </section>
+                  ) : null}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -28,6 +28,7 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/videos") ||
     pathname.startsWith("/faq") ||
     pathname.startsWith("/map") ||
+    pathname.startsWith("/teams") ||
     pathname.startsWith("/pending") ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/api/student") ||
@@ -36,7 +37,13 @@ export async function proxy(req: NextRequest) {
   if (!needsAuth) return passThrough(req);
 
   const token = await getToken({ req, secret: env.NEXTAUTH_SECRET });
-  if (!token) {
+
+  // An expired short session is stripped of its identity claims by the `jwt`
+  // callback rather than deleted, so the object survives and `!token` alone
+  // would wave it through. No `sub` means no user.
+  const signedIn = Boolean(token?.sub);
+
+  if (!signedIn) {
     if (isApi(pathname)) {
       return new NextResponse(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -93,6 +100,7 @@ export const config = {
     "/videos/:path*",
     "/faq/:path*",
     "/map/:path*",
+    "/teams/:path*",
     "/pending/:path*",
     "/admin/:path*",
     "/api/student/:path*",

@@ -64,7 +64,11 @@ export default function AdminRoomsPage() {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/rooms");
+      // "no-cache" revalidates instead of reading the browser cache. The route
+      // sends max-age=10, so a reload right after create/edit/delete would
+      // otherwise redisplay the pre-write list. The ETag still makes an
+      // unchanged list a 304 with no body.
+      const res = await fetch("/api/admin/rooms", { cache: "no-cache" });
       const j = await res.json().catch(() => null);
       if (!res.ok) {
         setError(j?.error ?? "Failed to load rooms");
@@ -217,8 +221,17 @@ export default function AdminRoomsPage() {
       <h1 className="text-2xl font-extrabold tracking-tight">Rooms</h1>
       <p className="text-sm text-foreground/70">Manage image coordinate rooms for the interactive campus map.</p>
 
-      <div className="grid gap-6 pt-4 lg:grid-cols-5">
-        <Card className="lg:col-span-2">
+      {/*
+        Explicit track sizes, not fractions. A `grid-cols-4` column keeps
+        shrinking as the screen grows in the other direction, which is how the
+        form ended up at ~200px with its heading wrapped onto two lines and the
+        map preview reduced to a thumbnail. A fixed 26rem column can't be
+        starved, and `1fr` hands every remaining pixel to the list.
+      */}
+      {/* Side by side only from xl. A fixed 26rem column at lg left the list
+          233px wide, which is worse than stacking. */}
+      <div className="grid gap-6 pt-4 xl:grid-cols-[26rem_1fr] 2xl:grid-cols-[30rem_1fr]">
+        <Card className="xl:sticky xl:top-6 xl:self-start">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Plus className="h-5 w-5 text-primary" />
@@ -253,9 +266,9 @@ export default function AdminRoomsPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-foreground/10 bg-background p-3">
-                <p className="text-xs font-semibold text-foreground/80">Pick coordinates on the map</p>
-                <p className="mt-1 text-xs text-foreground/70">Click the map to set x/y for the current room.</p>
+              <div className="rounded-2xl border border-foreground/10 bg-background p-4">
+                <p className="text-sm font-semibold text-foreground/80">Pick coordinates on the map</p>
+                <p className="mt-1 text-sm text-foreground/60">Click the map to set x/y for the current room.</p>
                 <div
                   ref={mapRef}
                   className="relative mt-3 aspect-square w-full overflow-hidden rounded-2xl border border-foreground/10 bg-panel"
@@ -276,7 +289,7 @@ export default function AdminRoomsPage() {
                         setMapImgError(true);
                       }}
                       className="object-contain"
-                      sizes="(max-width: 1024px) 90vw, 420px"
+                      sizes="(max-width: 1024px) 90vw, (max-width: 1536px) 26rem, 30rem"
                       quality={75}
                       priority
                     />
@@ -315,7 +328,7 @@ export default function AdminRoomsPage() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3">
+        <Card>
           <CardHeader>
             <CardTitle>Rooms list</CardTitle>
             <CardDescription>Search rooms by code (name), building, or floor.</CardDescription>

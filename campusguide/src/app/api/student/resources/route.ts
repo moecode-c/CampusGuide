@@ -12,6 +12,7 @@ import {
   serializeFolder,
 } from "@/server/data/drive";
 import { jsonWithEtag } from "@/server/httpCache";
+import { blockedByDriveLock } from "@/server/security/driveLock";
 
 const querySchema = z.object({
   q: z.string().max(80).optional(),
@@ -43,6 +44,10 @@ export async function GET(req: Request) {
       headers: { "content-type": "application/json" },
     });
   }
+
+  // The page hides the drive; this is what actually keeps students out of it.
+  const locked = await blockedByDriveLock(session);
+  if (locked) return locked;
 
   const url = new URL(req.url);
   const parsed = querySchema.safeParse({

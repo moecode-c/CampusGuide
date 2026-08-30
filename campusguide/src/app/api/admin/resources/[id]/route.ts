@@ -15,9 +15,9 @@ import {
     MAX_UPLOAD_BYTES,
     StorageNotConfiguredError,
     deleteObject,
+    fileNameFromObjectKey,
     headObject,
     publicUrlFor,
-    sanitizeFileName,
 } from "@/server/storage/r2";
 
 const updateSchema = z
@@ -169,7 +169,7 @@ export async function PATCH(
             );
         }
 
-        const fileName = sanitizeFileName(decodeURIComponent(objectKey.split("/").pop() ?? "file"));
+        const fileName = fileNameFromObjectKey(objectKey);
 
         resource.kind = ResourceKinds.File;
         resource.objectKey = objectKey;

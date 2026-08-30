@@ -22,7 +22,10 @@ export function MidtermClient() {
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch("/api/student/midterms");
+        // "no-cache" revalidates rather than reading the browser cache: the
+        // route sends max-age=30, so returning to this page within half a
+        // minute of saving would show the marks from before the save.
+        const res = await fetch("/api/student/midterms", { cache: "no-cache" });
         const json = await res.json().catch(() => null);
         if (cancelled) return;
         if (!res.ok) {
@@ -52,24 +55,24 @@ export function MidtermClient() {
 
   const bestPlugin = getGpaPlugin("midterm-40-best");
   const worstPlugin = getGpaPlugin("midterm-40-worst");
+  // Mirrors what save() sends. Number("") is 0 and finite, so filtering on
+  // Number.isFinite alone scored a subject you had named but not yet marked as
+  // 0/40 — an F that dragged the displayed range down while you typed. A blank
+  // credit-hours box likewise defaults to 3 rather than counting as 0 credits.
   const inputs = rows
+    .filter((r) => r.subject.trim().length > 0 && r.midtermMark.trim() !== "")
     .map((r) => ({
       subject: r.subject,
       midtermMark: Number(r.midtermMark),
-      creditHours: Number(r.creditHours),
+      creditHours: r.creditHours.trim() === "" ? 3 : Number(r.creditHours),
     }))
-    .filter((r) => r.subject.trim().length > 0 && Number.isFinite(r.midtermMark) && Number.isFinite(r.creditHours));
+    .filter((r) => Number.isFinite(r.midtermMark) && Number.isFinite(r.creditHours));
 
   const bestSummary = bestPlugin.compute(inputs);
   const worstSummary = worstPlugin.compute(inputs);
   const overallLow = Math.min(bestSummary.overallGpa, worstSummary.overallGpa);
   const overallHigh = Math.max(bestSummary.overallGpa, worstSummary.overallGpa);
   const overallAvg = Math.round(((overallLow + overallHigh) / 2) * 100) / 100;
-
-  // `bestSummary`/`worstSummary` are rebuilt every render, so memoizing here
-  // would never hit; build the lookups directly.
-  const bestBySubject = new Map(bestSummary.items.map((it) => [it.subject, it]));
-  const worstBySubject = new Map(worstSummary.items.map((it) => [it.subject, it]));
 
   async function save() {
     setError(null);
@@ -238,18 +241,18 @@ export function MidtermClient() {
           <CardDescription>Worst-case GPA – Best-case GPA (4.0 scale).</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between rounded-2xl bg-background p-4">
-            <div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-background p-4">
+            <div className="min-w-0">
               <p className="text-xs font-semibold text-foreground/70">Overall GPA (worst–best)</p>
-              <p className="text-3xl font-extrabold tracking-tight">
+              <p className="text-xl font-extrabold tracking-tight sm:text-3xl">
                 {overallLow.toFixed(2)}–{overallHigh.toFixed(2)}
               </p>
             </div>
             <Badge tone="neutral">4.0 scale</Badge>
           </div>
 
-          <div className="mt-3 flex items-center justify-between rounded-2xl bg-background p-4">
-            <div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-background p-4">
+            <div className="min-w-0">
               <p className="text-xs font-semibold text-foreground/70">Average GPA</p>
               <p className="text-2xl font-extrabold tracking-tight">{overallAvg.toFixed(2)}</p>
             </div>
@@ -260,11 +263,14 @@ export function MidtermClient() {
             {bestSummary.items.length === 0 ? (
               <p className="text-sm text-foreground/70">Add midterm marks to see results.</p>
             ) : (
-              bestSummary.items.map((it) => {
-                const worst = worstBySubject.get(it.subject);
-                const best = bestBySubject.get(it.subject);
+              // Paired by position, not by subject name: both plugins run over
+              // the same filtered rows in the same order, and keying on the name
+              // drops a row whenever two share a subject.
+              bestSummary.items.map((best, idx) => {
+                const it = best;
+                const worst = worstSummary.items[idx];
                 return (
-                  <div key={it.subject} className="flex items-center justify-between rounded-xl bg-background p-3">
+                  <div key={idx} className="flex items-center justify-between rounded-xl bg-background p-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold">{it.subject}</p>
                       <p className="text-xs text-foreground/70">

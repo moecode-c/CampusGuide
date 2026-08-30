@@ -11,7 +11,7 @@ export default async function Home() {
   if (session?.user?.id) redirect("/dashboard");
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10">
+    <main className="mx-auto w-full min-w-0 max-w-6xl px-3 py-8 sm:px-4 sm:py-10">
       <div className="pb-10">
         <AboutHero />
       </div>
@@ -19,7 +19,7 @@ export default async function Home() {
       <section className="grid items-center gap-10 lg:grid-cols-2">
         <div className="space-y-6">
           <div className="space-y-3">
-            <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
+            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl">
               CampusGuide
             </h1>
             <p className="max-w-prose text-base text-foreground/75">

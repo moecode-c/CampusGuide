@@ -232,7 +232,7 @@ export function CalendarClient() {
     <div className="w-full">
       <Card className="overflow-hidden ring-1 ring-primary/20 shadow-xl shadow-primary/10">
         <CardContent className="p-0">
-          <div className="relative h-[70dvh] overflow-x-auto bg-nav p-4 text-xs sm:h-[75dvh]">
+          <div className="relative h-[62dvh] overflow-x-auto bg-nav p-2 text-xs sm:h-[75dvh] sm:p-4">
             {loading ? (
               <div className="absolute inset-0 z-10 grid place-items-center bg-nav/70 backdrop-blur-[1px]">
                 <div className="text-center text-foreground/70">

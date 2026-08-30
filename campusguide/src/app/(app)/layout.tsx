@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/server/auth";
 import { AccountStatuses } from "@/server/models/User";
 import { getAccountState, touchLastSeen } from "@/server/security/accountStatus";
+import { AppMain } from "@/components/AppMain";
 
 /**
  * Central status gate for every signed-in page.
@@ -28,11 +29,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     if (state?.status === AccountStatuses.Active) void touchLastSeen(session.user.id);
   }
 
-  // The admin area runs its own sidebar shell and needs the full viewport; the
-  // student pages stay in a readable centered column.
-  const isAdminArea = pathname === "/admin" || pathname.startsWith("/admin/");
-
-  return (
-    <main className={isAdminArea ? "w-full" : "mx-auto w-full max-w-6xl px-4 py-6"}>{children}</main>
-  );
+  // The width decision lives in AppMain, a client component. This layout is
+  // shared by /admin and the student pages, and a shared layout is preserved
+  // across navigations between them rather than re-rendered — so deciding it
+  // here from `pathname` froze the value at whichever page was loaded first,
+  // and a client-side hop from /admin to /calendar left the student page with
+  // the admin's full-bleed width and no padding.
+  return <AppMain>{children}</AppMain>;
 }
