@@ -10,14 +10,18 @@ import {
   Ban,
   CheckCircle2,
   Eye,
+  KeyRound,
+  Pencil,
   RefreshCw,
   Search,
   Trash2,
+  Undo2,
   UserPlus,
   X,
-  Undo2,
   XCircle,
 } from "lucide-react";
+import { Pagination, usePaged } from "@/components/ui/pagination";
+import { whatsappLink } from "@/lib/miu";
 import { ActivityFeed, type ActivityItem } from "@/components/admin/ActivityFeed";
 
 export type AdminUser = {
@@ -74,6 +78,20 @@ export function UserManager({
   const [error, setError] = React.useState<string | null>(null);
   const [detail, setDetail] = React.useState<Detail | null>(null);
 
+  // The account list is one row per student and grows with the intake.
+  const pagedUsers = usePaged(items, 25);
+
+  // Edit state for the detail drawer. Null means the read-only view.
+  const [edit, setEdit] = React.useState<null | Record<string, string>>(null);
+  const [savingEdit, setSavingEdit] = React.useState(false);
+  const [editErr, setEditErr] = React.useState<string | null>(null);
+
+  // The freshly issued password, held only in this component and only until the
+  // drawer closes. It is never written anywhere it could be read back.
+  const [issued, setIssued] = React.useState<string | null>(null);
+  const [resetting, setResetting] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
+
   // Create-user form. Kept local to the manager so the Users page stays a
   // one-line wrapper.
   const [creating, setCreating] = React.useState(false);
@@ -116,6 +134,103 @@ export function UserManager({
     const handle = window.setTimeout(load, q ? 250 : 0);
     return () => window.clearTimeout(handle);
   }, [load, q]);
+
+  /**
+   * Sends only what actually changed.
+   *
+   * Posting the whole form back would rewrite the email and student ID on every
+   * save, and those two are cross-checked against each other server-side — an
+   * untouched pair would still be revalidated and could fail on data that was
+   * already in the database.
+   */
+  async function resetPassword() {
+    if (!detail) return;
+
+    const ok = window.confirm(
+      `Issue a new password for ${detail.user.name}?
+
+` +
+        "Their current password stops working immediately. You will see the new one once — send it to them before closing this panel."
+    );
+    if (!ok) return;
+
+    setResetting(true);
+    setEditErr(null);
+    setIssued(null);
+    setCopied(false);
+
+    try {
+      const res = await fetch(`/api/admin/users/${detail.user.id}/password`, { method: "POST" });
+      const j = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setEditErr(j?.error ?? "Could not reset that password");
+        return;
+      }
+
+      setIssued(j.password as string);
+      await load();
+    } catch {
+      setEditErr("Network error. Check your connection and try again.");
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  async function saveEdit() {
+    if (!detail || !edit) return;
+
+    const before: Record<string, string> = {
+      name: detail.user.name ?? "",
+      email: detail.user.email ?? "",
+      miuId: detail.user.miuId ?? "",
+      phone: detail.user.phone ?? "",
+      academicYear: detail.user.academicYear ? String(detail.user.academicYear) : "",
+      role: detail.user.role ?? "student",
+      status: detail.user.status ?? "active",
+    };
+
+    const body: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(edit)) {
+      if (value === before[key]) continue;
+      if (key === "academicYear") {
+        if (value) body.academicYear = Number(value);
+        continue;
+      }
+      body[key] = value;
+    }
+
+    if (Object.keys(body).length === 0) {
+      setEdit(null);
+      return;
+    }
+
+    setSavingEdit(true);
+    setEditErr(null);
+
+    try {
+      const res = await fetch(`/api/admin/users/${detail.user.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const j = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setEditErr(j?.error ?? "Could not save those changes");
+        return;
+      }
+
+      setEdit(null);
+      // Refresh both: the row in the list behind, and the drawer in front.
+      await load();
+      await openDetail(detail.user.id);
+    } catch {
+      setEditErr("Network error. Check your connection and try again.");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
 
   async function act(user: AdminUser, action: "verify" | "reject" | "ban" | "unban") {
     let reason: string | undefined;
@@ -370,7 +485,7 @@ export function UserManager({
         <p className="py-10 text-sm text-foreground/70">{emptyMessage}</p>
       ) : (
         <div className="space-y-3">
-          {items.map((u) => (
+          {pagedUsers.pageItems.map((u) => (
             // One full-width row per account: identity left, contact in the
             // middle, actions right — all on one line once there is room.
             <div
@@ -447,6 +562,8 @@ export function UserManager({
         </div>
       )}
 
+      <Pagination paged={pagedUsers} noun="accounts" />
+
       {/* The detail is an overlay now. As a permanent column it reserved a third
           of the page to say "Nothing selected" until somebody clicked something. */}
       {detail ? (
@@ -468,10 +585,176 @@ export function UserManager({
                 <h2 className="text-2xl font-extrabold tracking-tight">{detail.user.name}</h2>
                 <p className="mt-1 break-all text-sm text-foreground/60">{detail.user.email}</p>
               </div>
-              <Button variant="ghost" onClick={() => setDetail(null)} aria-label="Close detail">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setDetail(null);
+                  setEdit(null);
+                  setIssued(null);
+                }}
+                aria-label="Close detail"
+              >
                 <X className="h-5 w-5" />
               </Button>
             </div>
+
+            <div className="mt-6 flex flex-wrap items-center gap-2">
+              {edit ? null : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => resetPassword()}
+                  disabled={resetting}
+                >
+                  <KeyRound className="h-4 w-4" />
+                  {resetting ? "Resetting…" : "Reset password"}
+                </Button>
+              )}
+              {edit ? null : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setEditErr(null);
+                    setEdit({
+                      name: detail.user.name ?? "",
+                      email: detail.user.email ?? "",
+                      miuId: detail.user.miuId ?? "",
+                      phone: detail.user.phone ?? "",
+                      academicYear: detail.user.academicYear ? String(detail.user.academicYear) : "",
+                      role: detail.user.role ?? "student",
+                      status: detail.user.status ?? "active",
+                    });
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                  Edit account
+                </Button>
+              )}
+            </div>
+
+            {issued ? (
+              <div className="mt-4 space-y-3 rounded-2xl border border-warning/30 bg-warning/10 p-4">
+                <p className="text-sm font-extrabold">New password for {detail.user.name}</p>
+                <p className="text-xs text-foreground/70">
+                  Shown once. Close this panel and it is gone — press the button again if you lose it.
+                  Their old password already stopped working.
+                </p>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="min-w-0 flex-1 break-all rounded-xl bg-background px-3 py-2 font-mono text-sm">
+                    {issued}
+                  </code>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(issued);
+                        setCopied(true);
+                      } catch {
+                        // Clipboard access can be refused; the value is on screen
+                        // to be read either way.
+                        setCopied(false);
+                      }
+                    }}
+                  >
+                    {copied ? "Copied" : "Copy"}
+                  </Button>
+                  {detail.user.phone ? (
+                    /*
+                      Opens the chat only — the password is not put in the link.
+                      A wa.me URL carrying a live credential would sit in browser
+                      history and in the URL bar. Copy it, then paste it there.
+                    */
+                    <a
+                      href={whatsappLink(detail.user.phone)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-white transition hover:bg-secondary/90"
+                    >
+                      Open WhatsApp
+                    </a>
+                  ) : null}
+                </div>
+
+                <p className="text-xs text-foreground/50">
+                  Existing sign-ins on their devices are not ended by this — a password is not what keeps
+                  a session alive. Ban and unban the account if you need them signed out everywhere.
+                </p>
+              </div>
+            ) : null}
+
+            {edit ? (
+              <div className="mt-4 space-y-3 rounded-2xl bg-background p-4">
+                {editErr ? (
+                  <p className="rounded-xl bg-risk/10 px-3 py-2 text-sm font-semibold text-risk">{editErr}</p>
+                ) : null}
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {([
+                    ["name", "Name", "text"],
+                    ["email", "University email", "text"],
+                    ["miuId", "Student ID", "text"],
+                    ["phone", "Phone", "text"],
+                  ] as const).map(([key, label]) => (
+                    <label key={key} className="block">
+                      <span className="mb-1 block text-xs font-bold text-foreground/60">{label}</span>
+                      <Input
+                        value={edit[key] ?? ""}
+                        onChange={(e) => setEdit({ ...edit, [key]: e.target.value })}
+                      />
+                    </label>
+                  ))}
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold text-foreground/60">Year</span>
+                    <Select
+                      value={edit.academicYear}
+                      onChange={(e) => setEdit({ ...edit, academicYear: e.target.value })}
+                    >
+                      <option value="">Not set</option>
+                      {[1, 2, 3, 4].map((y) => (
+                        <option key={y} value={y}>
+                          Year {y}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold text-foreground/60">Role</span>
+                    <Select value={edit.role} onChange={(e) => setEdit({ ...edit, role: e.target.value })}>
+                      <option value="student">Student</option>
+                      <option value="admin">Admin</option>
+                    </Select>
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold text-foreground/60">Status</span>
+                    <Select value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>
+                      <option value="pending">Pending</option>
+                      <option value="active">Active</option>
+                      <option value="banned">Banned</option>
+                    </Select>
+                  </label>
+                </div>
+
+                <p className="text-xs text-foreground/50">
+                  The email and student ID must still match each other — the server checks the digits, the
+                  same way registration does.
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button disabled={savingEdit} onClick={() => saveEdit()}>
+                    {savingEdit ? "Saving…" : "Save changes"}
+                  </Button>
+                  <Button variant="ghost" disabled={savingEdit} onClick={() => setEdit(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : null}
 
             <dl className="mt-8 grid gap-x-8 gap-y-5 sm:grid-cols-2">
               {[

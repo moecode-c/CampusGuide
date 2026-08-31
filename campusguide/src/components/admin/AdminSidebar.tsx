@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { SIGN_OUT_CONFIRM } from "@/lib/session";
 
 type Item = {
   href: string;
@@ -162,7 +163,9 @@ function SidebarBody({ pending, alerts, onNavigate }: { pending: number; alerts:
         <Button
           variant="secondary"
           className="h-11 w-full justify-start"
-          onClick={() => signOut({ callbackUrl: "/" })}
+          onClick={() => {
+                if (window.confirm(SIGN_OUT_CONFIRM)) signOut({ callbackUrl: "/" });
+              }}
         >
           <LogOut className="h-4 w-4" />
           Sign out

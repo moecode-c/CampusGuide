@@ -8,6 +8,8 @@ import {
   getBreadcrumbs,
   listFolderContents,
   resolveFolder,
+  buildCourseIndex,
+  courseForFolder,
   serializeFile,
   serializeFolder,
 } from "@/server/data/drive";
@@ -17,6 +19,7 @@ import { blockedByDriveLock } from "@/server/security/driveLock";
 const querySchema = z.object({
   q: z.string().max(80).optional(),
   folderId: z.string().max(40).optional(),
+  course: z.string().max(120).optional(),
   subject: z.string().max(80).optional(),
   academicYear: z.coerce.number().int().min(1).max(4).optional(),
   type: z.enum(["video", "pdf", "summary"]).optional(),
@@ -53,6 +56,7 @@ export async function GET(req: Request) {
   const parsed = querySchema.safeParse({
     q: url.searchParams.get("q") ?? undefined,
     folderId: url.searchParams.get("folderId") ?? undefined,
+    course: url.searchParams.get("course") ?? undefined,
     subject: url.searchParams.get("subject") ?? undefined,
     academicYear: url.searchParams.get("academicYear") ?? undefined,
     type: url.searchParams.get("type") ?? undefined,
@@ -69,7 +73,17 @@ export async function GET(req: Request) {
 
   const q = parsed.data.q?.trim().toLowerCase();
   const subject = parsed.data.subject?.trim().toLowerCase();
-  const searching = Boolean(q || subject || parsed.data.academicYear || parsed.data.type);
+  const course = parsed.data.course?.trim();
+
+  // Every folder, so each file can be labelled with the course it sits under.
+  // Under a hundred documents and already the shape the drive is built from.
+  const courseIndex = buildCourseIndex(await Folder.find({}).select("name ancestors").lean());
+
+  /** Attaches the derived label. The client filters and groups on it. */
+  const withCourse = (items: ReturnType<typeof serializeFile>[]) =>
+    items.map((it) => ({ ...it, course: courseForFolder(courseIndex, it.folderId) }));
+
+  const searching = Boolean(q || subject || course || parsed.data.academicYear || parsed.data.type);
 
   if (searching) {
     const all = await getResourcesCached();
@@ -79,6 +93,7 @@ export async function GET(req: Request) {
         if (parsed.data.academicYear && r.academicYear !== parsed.data.academicYear) return false;
         if (parsed.data.type && r.type !== parsed.data.type) return false;
         if (subject && String(r.subject ?? "").toLowerCase() !== subject) return false;
+        if (course && courseForFolder(courseIndex, r.folderId) !== course) return false;
         if (q) {
           const hay = `${r.title ?? ""} ${r.subject ?? ""} ${r.fileName ?? ""}`.toLowerCase();
           if (!hay.includes(q)) return false;
@@ -97,7 +112,14 @@ export async function GET(req: Request) {
 
     return jsonWithEtag(
       req,
-      { mode: "search", folder: null, breadcrumbs: [], folders, items },
+      {
+        mode: "search",
+        folder: null,
+        breadcrumbs: [],
+        folders,
+        items: withCourse(items),
+        courses: courseIndex.courses,
+      },
       { cacheControl: "private, max-age=30, stale-while-revalidate=300" }
     );
   }
@@ -123,7 +145,8 @@ export async function GET(req: Request) {
       folder: folder ? serializeFolder(folder) : null,
       breadcrumbs,
       folders: contents.folders,
-      items: contents.files,
+      items: withCourse(contents.files),
+      courses: courseIndex.courses,
     },
     { cacheControl: "private, max-age=30, stale-while-revalidate=300" }
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { AccountGuard } from "@/components/AccountGuard";
 
 /**
  * The `<main>` wrapper for signed-in pages.
@@ -28,6 +29,9 @@ export function AppMain({ children }: { children: React.ReactNode }) {
           : "mx-auto w-full min-w-0 max-w-6xl px-3 py-5 sm:px-4 sm:py-6"
       }
     >
+      {/* Mounted here because this component does re-render on navigation,
+          which is exactly what the server layout's status check cannot do. */}
+      <AccountGuard />
       {children}
     </main>
   );

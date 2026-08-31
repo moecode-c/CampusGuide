@@ -5,6 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  formatMiuIdInput,
   isValidMiuEmail,
   isValidMiuId,
   isValidPhone,
@@ -95,4 +96,43 @@ test("landlines and junk are refused", () => {
   assert.equal(normalizePhone("0101234567"), null, "one digit short");
   assert.equal(normalizePhone("not a phone"), null);
   assert.equal(normalizePhone(""), null);
+});
+
+// ------------------------------------- typing an ID on a phone (no slash key)
+
+test("the ID formatter inserts the slash so only digits need typing", () => {
+  // A numeric keypad has no "/" key, so this field was unfillable on mobile.
+  assert.equal(formatMiuIdInput("2"), "2");
+  assert.equal(formatMiuIdInput("2024"), "2024");
+  assert.equal(formatMiuIdInput("20241"), "2024/1");
+  assert.equal(formatMiuIdInput("202415832"), "2024/15832");
+});
+
+test("the formatted result is one the validator accepts", () => {
+  // The whole point: type nine digits, get something isValidMiuId() approves.
+  assert.equal(isValidMiuId(formatMiuIdInput("202415832")), true);
+});
+
+test("re-typing over an already formatted value does not double the slash", () => {
+  // React feeds the formatted value back in on every keystroke.
+  assert.equal(formatMiuIdInput("2024/15832"), "2024/15832");
+  assert.equal(formatMiuIdInput(formatMiuIdInput("202415832")), "2024/15832");
+});
+
+test("pasted separators are absorbed rather than rejected", () => {
+  assert.equal(formatMiuIdInput("2024-15832"), "2024/15832");
+  assert.equal(formatMiuIdInput("2024 15832"), "2024/15832");
+  assert.equal(formatMiuIdInput(" 2024 / 15832 "), "2024/15832");
+});
+
+test("the field cannot be overfilled past nine digits", () => {
+  assert.equal(formatMiuIdInput("20241583299999"), "2024/15832");
+});
+
+test("deleting back through the slash still works", () => {
+  // Backspacing "2024/1" removes the 1, leaving "2024/" — which must collapse
+  // to "2024" rather than stranding a trailing separator.
+  assert.equal(formatMiuIdInput("2024/"), "2024");
+  assert.equal(formatMiuIdInput("202"), "202");
+  assert.equal(formatMiuIdInput(""), "");
 });

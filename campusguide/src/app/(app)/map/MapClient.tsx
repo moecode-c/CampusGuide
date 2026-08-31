@@ -9,21 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Search } from "lucide-react";
-import Papa from "papaparse";
-import { normalizeClockTime } from "@/lib/time";
+import { SCHEDULE_CSV_HEADERS, SCHEDULE_CSV_TEMPLATE, parseScheduleCsv } from "@/lib/scheduleCsv";
+import { findRoomByCode, matchScheduleRooms } from "@/lib/rooms";
 
 type Room = { roomCode: string; building: string; floor: number; x: number; y: number };
 
 type Upcoming = { title: string; type: string; start: string; end: string; roomCode: string };
-
-type ImportRow = {
-  title: string;
-  type: "lecture" | "lab";
-  dayOfWeek: "MO" | "TU" | "WE" | "TH" | "FR" | "SA" | "SU";
-  startTime: string;
-  endTime: string;
-  roomCode?: string;
-};
 
 export function MapClient() {
   const search = useSearchParams();
@@ -61,8 +52,7 @@ export function MapClient() {
       setScheduleRoomCodes(((j?.scheduleRoomCodes ?? []) as string[]).map((c) => String(c).trim().toUpperCase()));
 
       if (initialRoom) {
-        const found = list.find((r) => r.roomCode === initialRoom);
-        setSelected(found ?? null);
+        setSelected(findRoomByCode(list, initialRoom));
       }
 
       setError(null);
@@ -86,74 +76,28 @@ export function MapClient() {
       .slice(0, 20);
   }, [query, rooms]);
 
-  const upcomingRooms = React.useMemo(() => {
-    const set = new Set(
-      (scheduleRoomCodes.length ? scheduleRoomCodes : upcoming.map((e) => e.roomCode))
-        .map((c) => String(c ?? "").trim().toUpperCase())
-        .filter(Boolean)
-    );
-    return rooms.filter((r) => set.has(r.roomCode));
-  }, [upcoming, rooms, scheduleRoomCodes]);
+  // Codes come from the whole schedule when we have it, so a class further out
+  // than the 7-day "upcoming" window still gets a pin.
+  const { placed: upcomingRooms, unknown: unplacedCodes } = React.useMemo(
+    () => matchScheduleRooms(rooms, scheduleRoomCodes.length ? scheduleRoomCodes : upcoming.map((e) => e.roomCode)),
+    [upcoming, rooms, scheduleRoomCodes]
+  );
 
   async function onImportCsv(file: File) {
     setImportMsg(null);
     setImporting(true);
 
     try {
-      const text = await file.text();
-      const parsed = Papa.parse<Record<string, string>>(text, {
-        header: true,
-        skipEmptyLines: true,
-        transformHeader: (h) => h.trim(),
-      });
-
-      if (parsed.errors?.length) {
-        setImportMsg("CSV parse failed. Check the header row.");
-        return;
-      }
-
-      const allowedDow = new Set<ImportRow["dayOfWeek"]>(["MO", "TU", "WE", "TH", "FR", "SA", "SU"]);
-
-      const rows: ImportRow[] = (parsed.data ?? [])
-        .map((r) => {
-          const title = String(r.title ?? "").trim();
-
-          const typeRaw = String(r.type ?? "").trim().toLowerCase();
-          const type: ImportRow["type"] = typeRaw.startsWith("lab") ? "lab" : "lecture";
-
-          const dayOfWeekRaw = String(r.dayOfWeek ?? "").trim().toUpperCase();
-          const dayOfWeek = (allowedDow.has(dayOfWeekRaw as any) ? dayOfWeekRaw : "MO") as ImportRow["dayOfWeek"];
-
-          const startTime = normalizeClockTime(r.startTime);
-          const endTime = normalizeClockTime(r.endTime);
-          const roomCode = String(r.roomCode ?? "").trim();
-
-          return {
-            title,
-            type,
-            dayOfWeek,
-            startTime,
-            endTime,
-            roomCode: roomCode ? roomCode : undefined,
-          };
-        })
-        .filter((r) => Boolean(r.title));
-
-      if (rows.length === 0) {
-        setImportMsg("No rows with a title were found. Check the CSV headers.");
-        return;
-      }
-
-      const badRow = rows.find((r) => !r.startTime || !r.endTime || r.endTime <= r.startTime);
-      if (badRow) {
-        setImportMsg(`"${badRow.title}": startTime/endTime must be HH:MM with end after start.`);
+      const parsed = parseScheduleCsv(await file.text());
+      if (!parsed.ok) {
+        setImportMsg(parsed.error);
         return;
       }
 
       const res = await fetch("/api/student/schedule/import", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ rows }),
+        body: JSON.stringify({ rows: parsed.rows }),
       });
       const j = await res.json().catch(() => null);
       if (!res.ok) {
@@ -161,7 +105,23 @@ export function MapClient() {
         return;
       }
 
-      setImportMsg(`Imported ${j?.imported ?? rows.length} items into your calendar.`);
+      const imported = Number(j?.imported ?? parsed.rows.length);
+      const codes = parsed.rows.map((r) => r.roomCode).filter(Boolean) as string[];
+      const { placed, unknown } = matchScheduleRooms(rooms, codes);
+
+      // Say what landed on the map, not just what was saved: an import with no
+      // room codes looks broken otherwise, because no pins appear.
+      const parts = [`Imported ${imported} class${imported === 1 ? "" : "es"} into your calendar.`];
+      if (!codes.length) {
+        parts.push("None of the rows had a roomCode, so there is nothing to pin on the map.");
+      } else if (placed.length) {
+        parts.push(`${placed.length} room${placed.length === 1 ? "" : "s"} pinned below.`);
+      }
+      if (unknown.length) {
+        parts.push(`Not on the map: ${unknown.join(", ")}.`);
+      }
+      setImportMsg(parts.join(" "));
+
       window.dispatchEvent(new Event("cg:calendar:refetch"));
       await reload();
     } catch {
@@ -169,6 +129,15 @@ export function MapClient() {
     } finally {
       setImporting(false);
     }
+  }
+
+  function downloadTemplate() {
+    const url = URL.createObjectURL(new Blob([SCHEDULE_CSV_TEMPLATE], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "campusguide-schedule-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -237,7 +206,8 @@ export function MapClient() {
                   <div className="mt-3 rounded-2xl bg-panel p-3">
                     <p className="text-xs font-semibold">Upload schedule CSV</p>
                     <p className="mt-1 text-xs text-foreground/70">
-                      Headers: title,type,dayOfWeek,startTime,endTime,roomCode (type = lecture/lab, dayOfWeek = MO..SU, time = HH:mm).
+                      Headers: {SCHEDULE_CSV_HEADERS.join(",")} (type = lecture/lab, dayOfWeek = MO..SU, time = HH:mm).
+                      Rows with a roomCode get a pin on the map.
                     </p>
                     <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
                       <Input
@@ -250,22 +220,55 @@ export function MapClient() {
                           e.currentTarget.value = "";
                         }}
                       />
-                      <Button type="button" variant="secondary" disabled={importing} onClick={() => setImportMsg(null)}>
-                        Clear
+                      <Button type="button" variant="secondary" disabled={importing} onClick={downloadTemplate}>
+                        Template
                       </Button>
                     </div>
+                    {importing ? <p className="mt-2 text-xs font-semibold text-foreground/80">Importing…</p> : null}
                     {importMsg ? <p className="mt-2 text-xs font-semibold text-foreground/80">{importMsg}</p> : null}
                   </div>
 
+                  {unplacedCodes.length ? (
+                    <div className="mt-3 rounded-2xl border border-risk/25 bg-risk/10 p-3">
+                      <p className="text-xs font-semibold">
+                        {unplacedCodes.length} room code{unplacedCodes.length === 1 ? " is" : "s are"} not on the map
+                      </p>
+                      <p className="mt-1 break-words font-mono text-[11px] text-foreground/70">{unplacedCodes.join(", ")}</p>
+                      <p className="mt-1 text-[11px] text-foreground/60">
+                        Search the code above to see how the map spells it, then fix it on the calendar event.
+                      </p>
+                    </div>
+                  ) : null}
+
                   <div className="mt-3 space-y-2">
+                    {upcomingRooms.length ? (
+                      <>
+                        <p className="text-xs font-semibold text-foreground/70">Your rooms</p>
+                        <div className="flex flex-wrap gap-2">
+                          {upcomingRooms.map((r) => (
+                            <button
+                              key={`chip-${r.roomCode}`}
+                              type="button"
+                              className={`rounded-xl px-3 py-1.5 text-xs font-extrabold transition ${selected?.roomCode === r.roomCode ? "bg-primary text-white" : "bg-panel hover:bg-panel/80"}`}
+                              onClick={() => setSelected(r)}
+                            >
+                              {r.roomCode}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    ) : null}
+
                     {upcoming.length === 0 ? (
-                      <p className="text-sm text-foreground/70">Add room codes to your calendar events to see them here.</p>
+                      <p className="text-sm text-foreground/70">
+                        Import a CSV above, or add room codes to your calendar events, to see your classes here.
+                      </p>
                     ) : (
                       upcoming.slice(0, 6).map((e, idx) => (
                         <button
                           key={idx}
                           className="flex w-full min-w-0 items-center justify-between gap-2 rounded-xl bg-panel px-3 py-2 text-left hover:bg-panel/80"
-                          onClick={() => setSelected(rooms.find((r) => r.roomCode === e.roomCode) ?? null)}
+                          onClick={() => setSelected(findRoomByCode(rooms, e.roomCode))}
                         >
                           <span className="truncate text-sm font-semibold">{e.title}</span>
                           <span className="shrink-0 text-xs font-extrabold text-primary">{e.roomCode}</span>

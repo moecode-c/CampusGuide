@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Pagination, SeeAll, usePaged } from "@/components/ui/pagination";
 import { Download, FileQuestion, Flame, Library, Clock } from "lucide-react";
 import {
   STALENESS,
@@ -110,6 +111,12 @@ export default function AdminUsagePage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
+  // Never-opened is the long one — 426 files on a fresh drive. It starts as a
+  // 15-row glance with "see all", then pages. Most-opened is capped at 20 by the
+  // API, so it only ever needs paging if that cap is raised.
+  const neverOpened = usePaged(data?.neverOpened ?? [], 15, 15);
+  const mostOpened = usePaged(data?.top ?? [], 15);
+
   React.useEffect(() => {
     let cancelled = false;
 
@@ -210,14 +217,15 @@ export default function AdminUsagePage() {
                 {data.top.length === 0 ? (
                   <p className="text-sm text-foreground/60">Nothing has been opened yet.</p>
                 ) : (
-                  <ol className="space-y-2">
-                    {data.top.map((row, index) => (
+                  <>
+                    <ol className="space-y-2">
+                    {mostOpened.pageItems.map((row, index) => (
                       <li
                         key={row.id}
                         className="flex items-center gap-3 rounded-xl bg-background px-3 py-2.5"
                       >
                         <span className="w-5 shrink-0 text-right text-xs font-extrabold text-foreground/35">
-                          {index + 1}
+                          {(mostOpened.page - 1) * mostOpened.pageSize + index + 1}
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-bold">{row.title}</span>
@@ -226,7 +234,9 @@ export default function AdminUsagePage() {
                         <span className="shrink-0 text-sm font-extrabold">{row.downloadCount}</span>
                       </li>
                     ))}
-                  </ol>
+                    </ol>
+                    <Pagination paged={mostOpened} noun="files" />
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -245,8 +255,9 @@ export default function AdminUsagePage() {
                 {data.neverOpened.length === 0 ? (
                   <p className="text-sm text-foreground/60">Every file has been opened at least once.</p>
                 ) : (
-                  <ul className="space-y-2">
-                    {data.neverOpened.map((row) => (
+                  <>
+                    <ul className="space-y-2">
+                    {neverOpened.pageItems.map((row) => (
                       <li key={row.id} className="rounded-xl bg-background px-3 py-2.5">
                         <span className="block truncate text-sm font-bold">{row.title}</span>
                         <RowMeta row={row} />
@@ -255,7 +266,10 @@ export default function AdminUsagePage() {
                         </span>
                       </li>
                     ))}
-                  </ul>
+                    </ul>
+                    <SeeAll paged={neverOpened} noun="files" />
+                    <Pagination paged={neverOpened} noun="files" />
+                  </>
                 )}
               </CardContent>
             </Card>

@@ -5,25 +5,27 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
   CalendarDays,
+  ChevronDown,
   ClipboardCheck,
   GraduationCap,
+  HelpCircle,
   LayoutDashboard,
-  MapPin,
   Library,
+  LogIn,
+  LogOut,
+  MapPin,
+  Menu,
+  Shield,
+  UserPlus,
+  UserRound,
   Users,
   Video,
-  HelpCircle,
-  Shield,
-  ChevronDown,
-  LogIn,
-  UserPlus,
-  LogOut,
-  Menu,
   X,
 } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { SIGN_OUT_CONFIRM } from "@/lib/session";
 import { FlagKeys } from "@/lib/flags";
 
 /**
@@ -188,6 +190,7 @@ export function Navbar() {
     { href: gate("/teams"), label: "Teams", icon: <Users className="h-4 w-4" /> },
     { href: gate("/videos"), label: "Videos", icon: <Video className="h-4 w-4" /> },
     { href: gate("/faq"), label: "FAQ", icon: <HelpCircle className="h-4 w-4" /> },
+    { href: gate("/profile"), label: "Profile", icon: <UserRound className="h-4 w-4" /> },
     { href: gate("/map"), label: "Map", icon: <MapPin className="h-4 w-4" /> },
   ];
 
@@ -277,7 +280,9 @@ export function Navbar() {
             <Button
               variant="secondary"
               className="hidden h-10 xl:inline-flex"
-              onClick={() => signOut({ callbackUrl: "/" })}
+              onClick={() => {
+                if (window.confirm(SIGN_OUT_CONFIRM)) signOut({ callbackUrl: "/" });
+              }}
             >
               <LogOut className="h-4 w-4" />
               Sign out
@@ -390,7 +395,9 @@ export function Navbar() {
                   type="button"
                   variant="secondary"
                   className="h-11 w-full justify-start"
-                  onClick={() => signOut({ callbackUrl: "/" })}
+                  onClick={() => {
+                if (window.confirm(SIGN_OUT_CONFIRM)) signOut({ callbackUrl: "/" });
+              }}
                 >
                   <LogOut className="h-4 w-4" />
                   Sign out

@@ -1,5 +1,18 @@
 import Link from "next/link";
-import { CalendarDays, ClipboardCheck, Github, Home, Library, Linkedin, Mail, MapPin, LayoutDashboard, ExternalLink, ScrollText } from "lucide-react";
+import {
+  CalendarDays,
+  ClipboardCheck,
+  ExternalLink,
+  Github,
+  Home,
+  LayoutDashboard,
+  Library,
+  Linkedin,
+  Mail,
+  MapPin,
+  ScrollText,
+  ShieldCheck,
+} from "lucide-react";
 
 export function Footer() {
   const year = new Date().getFullYear();
@@ -12,6 +25,7 @@ export function Footer() {
     { label: "Resources", href: "/resources", icon: <Library className="h-4 w-4" /> },
     { label: "Map", href: "/map", icon: <MapPin className="h-4 w-4" /> },
     { label: "Rules & Conditions", href: "/terms", icon: <ScrollText className="h-4 w-4" /> },
+    { label: "Privacy Policy", href: "/privacy", icon: <ShieldCheck className="h-4 w-4" /> },
   ];
 
   const contactLinks = [

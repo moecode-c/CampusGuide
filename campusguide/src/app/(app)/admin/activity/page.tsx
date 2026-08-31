@@ -4,6 +4,7 @@ import * as React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Pagination, usePaged } from "@/components/ui/pagination";
 import { RefreshCw } from "lucide-react";
 import { ActivityFeed, type ActivityItem } from "@/components/admin/ActivityFeed";
 import { AlertsHistory } from "@/components/admin/AlertsHistory";
@@ -33,6 +34,8 @@ const ACTION_GROUPS: { label: string; actions: { value: string; label: string }[
       { value: ActivityActions.UserBan, label: "Banned" },
       { value: ActivityActions.UserUnban, label: "Unbanned" },
       { value: ActivityActions.UserDelete, label: "Account deleted" },
+      { value: ActivityActions.UserUpdate, label: "Account edited" },
+      { value: ActivityActions.UserPasswordReset, label: "Password reset" },
     ],
   },
   {
@@ -87,6 +90,7 @@ export default function AdminActivityPage() {
   const [error, setError] = React.useState<string | null>(null);
 
   const ipBlocks = useIpBlocks();
+  const pagedEvents = usePaged(items, 25);
   const [blockTarget, setBlockTarget] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
@@ -126,12 +130,38 @@ export default function AdminActivityPage() {
         </Button>
       </div>
 
+      <AlertsHistory />
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <ActiveSessionsCard onBlockIp={setBlockTarget} activeIps={ipBlocks.activeIps} />
+        <BlockedIpsCard
+          blocks={ipBlocks.blocks}
+          onUnblock={ipBlocks.unblock}
+          busy={ipBlocks.busy}
+        />
+      </div>
+
+      {ipBlocks.error ? (
+        <p className="rounded-2xl bg-risk/10 px-4 py-3 text-sm font-semibold text-risk">{ipBlocks.error}</p>
+      ) : null}
+
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Filter</CardTitle>
-          <CardDescription>Narrow the feed by what happened.</CardDescription>
+          <CardTitle className="text-lg">
+            {loading ? "Loading…" : `${items.length} event${items.length === 1 ? "" : "s"}`}
+          </CardTitle>
+          <CardDescription>
+            Each entry shows the address it came from. Use the block button to refuse it everywhere.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {/*
+            These live inside the log card rather than in a panel of their own.
+            They used to sit at the top of the page, and the alerts, sessions and
+            blocked-address panels were later added between them and the list —
+            so you scrolled to the events and the filter was three panels behind
+            you. Controls belong next to what they control.
+          */}
           <div className="grid gap-3 sm:grid-cols-2 lg:max-w-xl">
             <div className="space-y-1">
               <label className="text-sm font-semibold">Action</label>
@@ -158,36 +188,20 @@ export default function AdminActivityPage() {
             </div>
           </div>
 
-          {error ? <p className="mt-3 text-sm font-semibold text-risk">{error}</p> : null}
-        </CardContent>
-      </Card>
+          {action ? (
+            <button
+              type="button"
+              onClick={() => setAction("")}
+              className="text-xs font-semibold text-primary underline-offset-2 hover:underline"
+            >
+              Clear filter — show every action
+            </button>
+          ) : null}
 
-      <AlertsHistory />
+          {error ? <p className="text-sm font-semibold text-risk">{error}</p> : null}
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <ActiveSessionsCard onBlockIp={setBlockTarget} activeIps={ipBlocks.activeIps} />
-        <BlockedIpsCard
-          blocks={ipBlocks.blocks}
-          onUnblock={ipBlocks.unblock}
-          busy={ipBlocks.busy}
-        />
-      </div>
-
-      {ipBlocks.error ? (
-        <p className="rounded-2xl bg-risk/10 px-4 py-3 text-sm font-semibold text-risk">{ipBlocks.error}</p>
-      ) : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            {loading ? "Loading…" : `${items.length} event${items.length === 1 ? "" : "s"}`}
-          </CardTitle>
-          <CardDescription>
-            Each entry shows the address it came from. Use the block button to refuse it everywhere.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ActivityFeed items={items} onBlockIp={setBlockTarget} blockedIps={ipBlocks.activeIps} />
+          <ActivityFeed items={pagedEvents.pageItems} onBlockIp={setBlockTarget} blockedIps={ipBlocks.activeIps} />
+          <Pagination paged={pagedEvents} noun="events" />
         </CardContent>
       </Card>
 

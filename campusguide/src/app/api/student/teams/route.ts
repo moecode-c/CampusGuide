@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { connectToDatabase } from "@/server/db";
 import { requireSession } from "@/server/security/requireSession";
+import { Roles } from "@/server/roles";
 import { enforceRateLimit } from "@/server/security/rateLimit";
 import { TeamPost } from "@/server/models/TeamPost";
 import { User } from "@/server/models/User";
@@ -141,6 +142,7 @@ export async function GET(req: Request) {
     .limit(200)
     .lean();
 
+  const isAdmin = session.user.role === Roles.Admin;
   const posts = items.map((p) => ({
     id: String(p._id),
     kind: p.kind,
@@ -159,6 +161,13 @@ export async function GET(req: Request) {
     // Name only. The board never exposes an email address.
     ownerName: p.ownerName,
     isOwner: String(p.ownerId) === session.user.id,
+    /**
+     * Who may remove this post. The DELETE route has always let an admin remove
+     * anyone's — the board simply never offered the button, so moderating meant
+     * going to the database. Sent as a permission rather than a role so the card
+     * never has to reason about who the viewer is.
+     */
+    canDelete: String(p.ownerId) === session.user.id || isAdmin,
     createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : null,
   }));
 

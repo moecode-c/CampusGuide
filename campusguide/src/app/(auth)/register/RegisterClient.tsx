@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { TERMS_CONSENT_LABEL } from "@/lib/terms";
 import { Select } from "@/components/ui/select";
 import { UserPlus } from "lucide-react";
-import { MIU_EMAIL_DOMAIN, PHONE_HINT, isValidPhone, validateMiuIdentity } from "@/lib/miu";
+import { MIU_EMAIL_DOMAIN, PHONE_HINT, formatMiuIdInput, isValidPhone, validateMiuIdentity } from "@/lib/miu";
 
 export function RegisterClient() {
   const router = useRouter();
@@ -122,9 +122,14 @@ export function RegisterClient() {
                 <label className="text-sm font-semibold">Student ID</label>
                 <Input
                   value={miuId}
-                  onChange={(e) => setMiuId(e.target.value)}
+                  // The slash is inserted for them: a phone's numeric keypad has
+                  // no "/" key, which made this field impossible to fill in on
+                  // mobile. They type nine digits and the format takes care of
+                  // itself.
+                  onChange={(e) => setMiuId(formatMiuIdInput(e.target.value))}
                   placeholder="2024/15832"
                   inputMode="numeric"
+                  autoComplete="off"
                   required
                 />
               </div>

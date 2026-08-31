@@ -36,3 +36,11 @@ export function isSessionExpired(expiresAt: unknown, now: number = Date.now()): 
 
 /** Seconds, for NextAuth's `session.maxAge`, which is the outer bound. */
 export const SESSION_MAX_AGE_SECONDS = SESSION_REMEMBER_DAYS * 24 * 60 * 60;
+
+/**
+ * Asked before signing out.
+ *
+ * Shared by the student navbar (desktop and drawer) and the admin sidebar —
+ * three buttons that must not drift into three different questions.
+ */
+export const SIGN_OUT_CONFIRM = "Are you sure you want to sign out?";

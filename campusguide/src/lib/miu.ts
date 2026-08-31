@@ -97,3 +97,33 @@ export function normalizePhone(raw: string) {
 export function isValidPhone(raw: string) {
   return normalizePhone(raw) !== null;
 }
+
+/**
+ * Formats keystrokes into the `2024/15832` shape while the student types.
+ *
+ * A phone's numeric keypad has no slash key, so a field asking for `2024/15832`
+ * was impossible to fill in on mobile — the form just kept rejecting it. Rather
+ * than widen the keyboard and hope, the separator is inserted here so only
+ * digits ever need to be typed.
+ *
+ * Non-digits are dropped rather than rejected, which also makes a pasted
+ * `2024-15832` or `2024 15832` land correctly.
+ */
+export function formatMiuIdInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 9);
+  if (digits.length <= 4) return digits;
+  return `${digits.slice(0, 4)}/${digits.slice(4)}`;
+}
+
+/**
+ * A wa.me link for an Egyptian number.
+ *
+ * wa.me needs the full international number with no plus and no leading zero:
+ * `201022138836`, not `01022138836`. Stripping non-digits alone leaves the local
+ * leading 0 in place and the link silently fails to open a chat.
+ */
+export function whatsappLink(number: string): string {
+  const normalized = normalizePhone(number);
+  const digits = (normalized ?? number).replace(/\D/g, "");
+  return `https://wa.me/${digits}`;
+}

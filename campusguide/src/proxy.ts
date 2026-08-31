@@ -16,23 +16,38 @@ function passThrough(req: NextRequest) {
   return NextResponse.next({ request: { headers } });
 }
 
+/**
+ * Everything behind a sign-in.
+ *
+ * This list and `config.matcher` at the bottom must agree. The matcher decides
+ * which requests reach this function at all; this decides which of them get
+ * guarded. Adding a page to only one of them is silent: /profile was in the
+ * matcher but missing here, so the proxy ran and waved it straight through to
+ * an unauthenticated visitor.
+ *
+ * `tests/proxy.test.ts` compares the two and fails if they ever diverge again.
+ */
+export const PROTECTED_PREFIXES = [
+  "/dashboard",
+  "/gpa",
+  "/attendance",
+  "/calendar",
+  "/resources",
+  "/videos",
+  "/faq",
+  "/map",
+  "/teams",
+  "/profile",
+  "/pending",
+  "/admin",
+  "/api/student",
+  "/api/admin",
+] as const;
+
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  const needsAuth =
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/gpa") ||
-    pathname.startsWith("/attendance") ||
-    pathname.startsWith("/calendar") ||
-    pathname.startsWith("/resources") ||
-    pathname.startsWith("/videos") ||
-    pathname.startsWith("/faq") ||
-    pathname.startsWith("/map") ||
-    pathname.startsWith("/teams") ||
-    pathname.startsWith("/pending") ||
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/api/student") ||
-    pathname.startsWith("/api/admin");
+  const needsAuth = PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 
   if (!needsAuth) return passThrough(req);
 
@@ -101,6 +116,7 @@ export const config = {
     "/faq/:path*",
     "/map/:path*",
     "/teams/:path*",
+    "/profile/:path*",
     "/pending/:path*",
     "/admin/:path*",
     "/api/student/:path*",

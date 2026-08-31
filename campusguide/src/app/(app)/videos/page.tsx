@@ -83,13 +83,25 @@ export default function VideosPage() {
 
   const query = q.trim().toLowerCase();
 
-  const filteredCourses = query
-    ? courses.filter((c) => `${c.title} ${c.subject ?? ""} ${c.instructor ?? ""}`.toLowerCase().includes(query))
-    : courses;
+  // Memoized because the search box re-renders this component on every
+  // keystroke, and both of these walk the whole library building a lowercased
+  // haystack per row. Without it a student typing "networks" rebuilds two full
+  // strings per course per character.
+  const filteredCourses = React.useMemo(
+    () =>
+      query
+        ? courses.filter((c) =>
+            `${c.title} ${c.subject ?? ""} ${c.instructor ?? ""}`.toLowerCase().includes(query)
+          )
+        : courses,
+    [courses, query]
+  );
 
-  const filteredLoose = query
-    ? loose.filter((i) => `${i.title} ${i.subject ?? ""}`.toLowerCase().includes(query))
-    : loose;
+  const filteredLoose = React.useMemo(
+    () =>
+      query ? loose.filter((i) => `${i.title} ${i.subject ?? ""}`.toLowerCase().includes(query)) : loose,
+    [loose, query]
+  );
 
   const nothingAtAll = !loading && filteredCourses.length === 0 && filteredLoose.length === 0;
 
@@ -201,8 +213,15 @@ export default function VideosPage() {
 
                   <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     {filteredLoose.map((item) => {
-                      const url = item.externalUrl ?? item.fileUrl;
-                      const videoId = url ? youtubeVideoId(url) : null;
+                      // The YouTube id is read from the real link, but a
+                      // drive-hosted file is opened through the download route
+                      // so it is counted — same reason as the resources page.
+                      const source = item.externalUrl ?? item.fileUrl;
+                      const videoId = source ? youtubeVideoId(source) : null;
+                      const url =
+                        item.kind === "file"
+                          ? `/api/student/resources/${item.id}/download`
+                          : source;
                       const isPlaying = playing === item.id;
 
                       return (

@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { AlertTriangle, RefreshCw, Search, Trash2, Users } from "lucide-react";
+import { Pagination, usePaged } from "@/components/ui/pagination";
+import { AlertTriangle, Ban, RefreshCw, Search, Trash2, Users } from "lucide-react";
 import {
   DIFFICULTY_LABELS,
   KIND_LABELS,
@@ -79,6 +81,8 @@ export default function AdminTeamsPage() {
 
   const [loading, setLoading] = React.useState(true);
   const [purging, setPurging] = React.useState(false);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [banningId, setBanningId] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
 
@@ -139,6 +143,91 @@ export default function AdminTeamsPage() {
     }
   }
 
+  async function removeOne(post: AdminPost) {
+    const ok = window.confirm(
+      `Delete "${post.title}" by ${post.ownerName ?? "a deleted account"}?
+
+This cannot be undone.`
+    );
+    if (!ok) return;
+
+    setDeletingId(post.id);
+    setError(null);
+    setNotice(null);
+
+    try {
+      // The student route already lets an admin remove anyone's post, and it
+      // logs the deletion against the right target. No second endpoint needed.
+      const res = await fetch(`/api/student/teams/${post.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        setError(j?.error ?? "Could not delete that post");
+        return;
+      }
+      setNotice(`Removed "${post.title}".`);
+      await load();
+    } catch {
+      setError("Network error. Check your connection and try again.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  /**
+   * Bans the account behind a post, without leaving the board.
+   *
+   * Uses the same endpoint and payload the Users page does, rather than a
+   * second route: banning is one behaviour and it should log, guard and read
+   * identically wherever it is triggered from. The server refuses a self-ban,
+   * so that case needs no handling here.
+   *
+   * The post itself is left alone. Removing someone's account and silently
+   * deleting what they wrote are two decisions, and the delete button for this
+   * row is right next to this one.
+   */
+  async function banOwner(post: AdminPost) {
+    if (!post.ownerId) {
+      setError("That post has no account attached — it was written by a deleted user.");
+      return;
+    }
+
+    const who = post.ownerName ?? "this student";
+    const ok = window.confirm(
+      `Ban ${who} over "${post.title}"?
+
+` +
+        "They lose access immediately and cannot sign back in. The post itself stays up — delete it separately if you want it gone."
+    );
+    if (!ok) return;
+
+    const answer = window.prompt(`Reason for banning ${who}? (optional)`) ?? "";
+
+    setBanningId(post.id);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const res = await fetch(`/api/admin/users/${post.ownerId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "ban", reason: answer.trim() || undefined }),
+      });
+      const j = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setError(j?.error ?? "Could not ban that account");
+        return;
+      }
+
+      setNotice(`Banned ${who}. Their post is still on the board.`);
+      await load();
+    } catch {
+      setError("Network error. Check your connection and try again.");
+    } finally {
+      setBanningId(null);
+    }
+  }
+
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
 
@@ -153,6 +242,8 @@ export default function AdminTeamsPage() {
         .includes(q);
     });
   }, [posts, query, view]);
+
+  const paged = usePaged(filtered, 25);
 
   return (
     <div className="space-y-2">
@@ -253,7 +344,7 @@ export default function AdminTeamsPage() {
             </p>
           ) : (
             <ul className="space-y-2">
-              {filtered.map((post) => (
+              {paged.pageItems.map((post) => (
                 <li
                   key={post.id}
                   className={
@@ -280,25 +371,68 @@ export default function AdminTeamsPage() {
                       </p>
 
                       <p className="mt-1 text-xs text-foreground/55">
-                        Posted by <span className="font-semibold">{post.ownerName ?? "a deleted account"}</span>
+                        Posted by{" "}
+                        {/*
+                          Deep-links into the account drawer on the Users page,
+                          the same route the security alerts use. Admin-only by
+                          construction: this page lives under /admin, and the
+                          student board renders the poster's name as plain text.
+                        */}
+                        {post.ownerId ? (
+                          <Link
+                            href={`/admin/users?user=${post.ownerId}`}
+                            className="font-semibold text-primary underline-offset-2 hover:underline"
+                            title={`Open ${post.ownerName ?? "this account"}`}
+                          >
+                            {post.ownerName ?? "this account"}
+                          </Link>
+                        ) : (
+                          <span className="font-semibold">a deleted account</span>
+                        )}
                         {" · "}
                         {when(post.createdAt)}
                       </p>
                     </div>
 
-                    <span
-                      className={
-                        "shrink-0 text-xs font-bold " +
-                        (post.flagged ? "text-warning" : "text-foreground/45")
-                      }
-                    >
-                      {postAgeLabel(post.createdAt)}
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span
+                        className={
+                          "text-xs font-bold " +
+                          (post.flagged ? "text-warning" : "text-foreground/45")
+                        }
+                      >
+                        {postAgeLabel(post.createdAt)}
+                      </span>
+                      {post.ownerId ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => banOwner(post)}
+                          disabled={banningId === post.id}
+                          aria-label={`Ban ${post.ownerName ?? "the poster"}`}
+                          title={`Ban ${post.ownerName ?? "the poster"}`}
+                        >
+                          <Ban className="h-4 w-4 text-risk" />
+                        </Button>
+                      ) : null}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeOne(post)}
+                        disabled={deletingId === post.id}
+                        aria-label={`Delete ${post.title}`}
+                        title={`Delete ${post.title}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-risk" />
+                      </Button>
                     </span>
                   </div>
                 </li>
               ))}
             </ul>
           )}
+
+          <Pagination paged={paged} noun="posts" />
         </CardContent>
       </Card>
     </div>

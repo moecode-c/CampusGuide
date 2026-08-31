@@ -31,6 +31,8 @@ type Item = {
   mimeType: string | null;
   externalUrl: string | null;
   subject: string | null;
+  /** Derived server-side from the folder tree: term / course / ... */
+  course: string | null;
   academicYear: number | null;
   type: "video" | "pdf" | "summary" | null;
   createdAt: string | null;
@@ -42,6 +44,8 @@ type DriveResponse = {
   breadcrumbs: { id: string; name: string }[];
   folders: DriveFolder[];
   items: Item[];
+  /** Every course in the drive, for the filter. Sent with both browse and search. */
+  courses?: string[];
 };
 
 function iconFor(item: Item) {
@@ -56,10 +60,12 @@ export function ResourcesClient() {
   const [q, setQ] = React.useState("");
   const [academicYear, setAcademicYear] = React.useState("");
   const [type, setType] = React.useState("");
+  const [course, setCourse] = React.useState("");
   const [folderId, setFolderId] = React.useState<string | null>(null);
   const [data, setData] = React.useState<DriveResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [courseOptions, setCourseOptions] = React.useState<string[]>([]);
 
   // Debouncing narrows the window but does not close it: a slow request for
   // "ab" can still land after a fast one for "abc" and repaint the older
@@ -77,9 +83,10 @@ export function ResourcesClient() {
     const params = new URLSearchParams();
     if (term) params.set("q", term);
     if (academicYear) params.set("academicYear", academicYear);
+    if (course) params.set("course", course);
     if (type) params.set("type", type);
     // Filters search the whole drive; the folder only matters while browsing.
-    if (!term && !academicYear && !type && folderId) params.set("folderId", folderId);
+    if (!term && !academicYear && !type && !course && folderId) params.set("folderId", folderId);
 
     try {
       const res = await fetch(`/api/student/resources?${params.toString()}`);
@@ -90,13 +97,17 @@ export function ResourcesClient() {
         return;
       }
       setData(j as DriveResponse);
+      // Held in their own state so the dropdown does not empty itself while a
+      // filtered request is in flight — the server sends the full list either
+      // way, but a slow response would otherwise blank the options mid-choice.
+      if (Array.isArray(j?.courses) && j.courses.length) setCourseOptions(j.courses);
       setError(null);
     } catch {
       if (seq === requestSeq.current) setError("Network error. Check your connection and try again.");
     } finally {
       if (seq === requestSeq.current) setLoading(false);
     }
-  }, [academicYear, folderId, term, type]);
+  }, [academicYear, course, folderId, term, type]);
 
   // Auto-search: debounce typing, instant on select changes.
   React.useEffect(() => {
@@ -142,6 +153,17 @@ export function ResourcesClient() {
                 <option value="2">Year 2</option>
                 <option value="3">Year 3</option>
                 <option value="4">Year 4</option>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-semibold">Course</label>
+              <Select className="mt-1" value={course} onChange={(e) => setCourse(e.target.value)}>
+                <option value="">All courses</option>
+                {courseOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {c.replace(/[_-]+/g, " ")}
+                  </option>
+                ))}
               </Select>
             </div>
             <div>
@@ -219,7 +241,19 @@ export function ResourcesClient() {
                 ))}
 
                 {data.items.map((it) => {
-                  const href = it.kind === "file" ? it.fileUrl : it.externalUrl;
+                  /**
+                   * Files go through the download route rather than straight to
+                   * the bucket URL. That route counts the download and then 302s
+                   * to R2 — linking `fileUrl` directly is why the usage
+                   * dashboard sat at zero while files were being opened.
+                   *
+                   * Links have nothing to count and no object to redirect to, so
+                   * they keep pointing at wherever they point.
+                   */
+                  const href =
+                    it.kind === "file"
+                      ? `/api/student/resources/${it.id}/download`
+                      : it.externalUrl;
                   const meta = [
                     it.kind === "file" ? it.fileName : null,
                     it.kind === "file" ? formatBytes(it.fileSize) : null,

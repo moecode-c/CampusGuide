@@ -68,6 +68,8 @@ type Post = {
   status: "open" | "closed";
   ownerName: string;
   isOwner: boolean;
+  /** Owner or admin. Sent by the server so the card never reasons about roles. */
+  canDelete: boolean;
   createdAt: string | null;
 };
 
@@ -216,9 +218,9 @@ function PostCard({
 
           {closed ? null : <ContactBlock post={post} />}
 
-          {post.isOwner ? (
+          {post.isOwner || post.canDelete ? (
             <div className="flex gap-2">
-              {closed ? (
+              {post.isOwner ? (closed ? (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -239,16 +241,20 @@ function PostCard({
                   <CheckCircle2 className="h-4 w-4" />
                   Mark filled
                 </Button>
-              )}
-              <Button
-                variant="danger"
-                size="sm"
-                disabled={busy}
-                onClick={() => onDelete(post.id)}
-                aria-label="Delete post"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              )) : null}
+              {/* Closing and reopening stay with the owner; removing is also an
+                  admin's job, which is what canDelete carries. */}
+              {post.canDelete ? (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => onDelete(post.id)}
+                  aria-label="Delete post"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              ) : null}
             </div>
           ) : null}
         </div>

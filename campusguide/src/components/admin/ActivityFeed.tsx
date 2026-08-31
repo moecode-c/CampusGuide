@@ -44,6 +44,8 @@ const PRESENTATION: Record<string, { icon: React.ReactNode; verb: string; tone?:
   "admin.user.ban": { icon: <Ban className="h-4 w-4" />, verb: "banned", tone: "text-risk" },
   "admin.user.unban": { icon: <RefreshCw className="h-4 w-4" />, verb: "unbanned" },
   "admin.user.delete": { icon: <Trash2 className="h-4 w-4" />, verb: "deleted account", tone: "text-risk" },
+  "admin.user.update": { icon: <Pencil className="h-4 w-4" />, verb: "edited the account of" },
+  "admin.user.password_reset": { icon: <KeyRound className="h-4 w-4" />, verb: "reset the password for", tone: "text-warning" },
   "resource.create": { icon: <UploadCloud className="h-4 w-4" />, verb: "added" },
   "resource.update": { icon: <Pencil className="h-4 w-4" />, verb: "edited" },
   "resource.replace": { icon: <RefreshCw className="h-4 w-4" />, verb: "replaced" },

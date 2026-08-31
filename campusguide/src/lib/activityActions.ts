@@ -25,6 +25,10 @@ export const ActivityActions = {
   UserBan: "admin.user.ban",
   UserUnban: "admin.user.unban",
   UserDelete: "admin.user.delete",
+  /** An admin edited an account's fields directly, rather than verifying or banning it. */
+  UserUpdate: "admin.user.update",
+  /** An admin issued a new password. The password itself is never logged. */
+  UserPasswordReset: "admin.user.password_reset",
 
   ResourceCreate: "resource.create",
   ResourceUpdate: "resource.update",

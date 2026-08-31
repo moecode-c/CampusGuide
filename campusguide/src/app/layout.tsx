@@ -6,6 +6,7 @@ import { AppChrome } from "@/components/AppChrome";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { CursorGlow } from "@/components/CursorGlow";
+import { Analytics } from "@/components/Analytics";
 
 const geistSans = Oxanium({
   variable: "--font-geist-sans",
@@ -56,6 +57,7 @@ export default function RootLayout({
             </AppChrome>
           </div>
         </AppSessionProvider>
+        <Analytics />
       </body>
     </html>
   );

@@ -111,3 +111,55 @@ export async function subtreeFolderIds(rootId: mongoose.Types.ObjectId) {
   const descendants = await Folder.find({ ancestors: rootId }).select("_id").lean();
   return [rootId, ...descendants.map((d: any) => d._id as mongoose.Types.ObjectId)];
 }
+
+/**
+ * Maps every folder to the course it belongs to.
+ *
+ * The drive is `term / course / whatever`, so the course is the folder sitting
+ * directly under a top-level term folder. A file in
+ * `1st_term_freshman/Physics/past_exams` belongs to Physics; a file directly in
+ * `1st_term_freshman/Physics` belongs to Physics too.
+ *
+ * Derived from the tree rather than stored on each resource: `subject` exists on
+ * the model but is unset on all 426 files, so a filter built on it would list
+ * one option called "no subject" and be useless. This needs no data entry and is
+ * right the moment a folder is renamed.
+ */
+export type CourseIndex = {
+  /** folder id -> course name */
+  byFolder: Map<string, string>;
+  /** every distinct course, sorted for a filter dropdown */
+  courses: string[];
+};
+
+type FolderLike = { _id: unknown; name?: string | null; ancestors?: unknown[] | null };
+
+export function buildCourseIndex(folders: FolderLike[]): CourseIndex {
+  const byId = new Map(folders.map((f) => [String(f._id), f]));
+  const byFolder = new Map<string, string>();
+
+  for (const folder of folders) {
+    const ancestors = folder.ancestors ?? [];
+
+    // No ancestors: this *is* a term folder, and a term is not a course.
+    if (ancestors.length === 0) continue;
+
+    // One ancestor (the term): the folder itself is the course.
+    // More: the course is the first folder below the term.
+    const courseFolder = ancestors.length === 1 ? folder : byId.get(String(ancestors[1]));
+
+    const name = courseFolder?.name;
+    if (name) byFolder.set(String(folder._id), name);
+  }
+
+  return {
+    byFolder,
+    courses: [...new Set(byFolder.values())].sort((a, b) => a.localeCompare(b)),
+  };
+}
+
+/** The course a file belongs to, or null when it sits loose at the drive root. */
+export function courseForFolder(index: CourseIndex, folderId: unknown): string | null {
+  if (!folderId) return null;
+  return index.byFolder.get(String(folderId)) ?? null;
+}

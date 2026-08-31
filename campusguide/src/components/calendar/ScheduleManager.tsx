@@ -5,10 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Plus, Loader2, CheckCircle, AlertCircle, Download } from "lucide-react";
+import { SCHEDULE_CSV_HEADERS, SCHEDULE_CSV_TEMPLATE, parseScheduleCsv } from "@/lib/scheduleCsv";
 
 export function ScheduleManager({ onUpdate }: { onUpdate: () => void }) {
     const [open, setOpen] = React.useState(false);
+    const [mode, setMode] = React.useState<"manual" | "csv">("manual");
     const [busy, setBusy] = React.useState(false);
     const [msg, setMsg] = React.useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -24,9 +26,21 @@ export function ScheduleManager({ onUpdate }: { onUpdate: () => void }) {
     function reset() {
         setMsg(null);
         setBusy(false);
+        setMode("manual");
         setTitle("");
         setProf("");
         setRoom("");
+    }
+
+    async function sendRows(rows: unknown[]) {
+        const res = await fetch("/api/student/schedule/import", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ rows }),
+        });
+        const body = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(body?.error ?? "Failed to save your schedule");
+        return Number(body?.imported ?? rows.length);
     }
 
     async function handleSubmit(e: React.FormEvent) {
@@ -51,29 +65,51 @@ export function ScheduleManager({ onUpdate }: { onUpdate: () => void }) {
         };
 
         try {
-            const res = await fetch("/api/student/schedule/import", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ rows: [row] }),
-            });
-
-            if (res.ok) {
-                setMsg({ type: "success", text: "Class added successfully!" });
-                onUpdate();
-                window.dispatchEvent(new Event("cg:calendar:refetch"));
-                setTitle("");
-                setProf("");
-                setRoom("");
-            } else {
-                const j = await res.json().catch(() => ({}));
-                setMsg({ type: "error", text: j.error ?? "Failed to add class" });
-            }
-        } catch {
-            setMsg({ type: "error", text: "Network error. Please try again." });
+            await sendRows([row]);
+            setMsg({ type: "success", text: "Class added successfully!" });
+            onUpdate();
+            window.dispatchEvent(new Event("cg:calendar:refetch"));
+            setTitle("");
+            setProf("");
+            setRoom("");
+        } catch (err) {
+            setMsg({ type: "error", text: err instanceof Error ? err.message : "Network error. Please try again." });
         } finally {
             // Without a finally the button stays disabled forever on a failed request.
             setBusy(false);
         }
+    }
+
+    async function handleCsv(file: File) {
+        setMsg(null);
+        setBusy(true);
+
+        try {
+            const parsed = parseScheduleCsv(await file.text());
+            if (!parsed.ok) {
+                setMsg({ type: "error", text: parsed.error });
+                return;
+            }
+
+            const imported = await sendRows(parsed.rows);
+            const skipped = parsed.skipped ? ` ${parsed.skipped} empty row${parsed.skipped > 1 ? "s were" : " was"} skipped.` : "";
+            setMsg({ type: "success", text: `Imported ${imported} class${imported === 1 ? "" : "es"} into your calendar.${skipped}` });
+            onUpdate();
+            window.dispatchEvent(new Event("cg:calendar:refetch"));
+        } catch (err) {
+            setMsg({ type: "error", text: err instanceof Error ? err.message : "Import failed. Check the file and your connection." });
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    function downloadTemplate() {
+        const url = URL.createObjectURL(new Blob([SCHEDULE_CSV_TEMPLATE], { type: "text/csv;charset=utf-8" }));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "campusguide-schedule-template.csv";
+        a.click();
+        URL.revokeObjectURL(url);
     }
 
     return (
@@ -87,16 +123,71 @@ export function ScheduleManager({ onUpdate }: { onUpdate: () => void }) {
             <DialogContent className="sm:max-w-105 bg-panel text-foreground border border-foreground/10 shadow-xl shadow-primary/10">
                 <DialogHeader>
                     <DialogTitle className="text-foreground">Add Class</DialogTitle>
-                    <DialogDescription className="text-foreground/70">Add a class to your weekly schedule.</DialogDescription>
+                    <DialogDescription className="text-foreground/70">Add one class, or import your whole timetable from a CSV file.</DialogDescription>
                 </DialogHeader>
 
+                <div className="flex gap-1 rounded-xl border border-foreground/10 bg-background/40 p-1">
+                    {([["manual", "One class"], ["csv", "Import CSV"]] as const).map(([value, label]) => (
+                        <button
+                            key={value}
+                            type="button"
+                            onClick={() => { setMode(value); setMsg(null); }}
+                            className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${mode === value ? "bg-primary text-white shadow-sm" : "text-foreground/70 hover:text-foreground"}`}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+
                 {msg && (
-                    <div className={`p-3 rounded-xl text-sm flex items-center gap-2 border ${msg.type === "success" ? "bg-success/10 text-foreground border-success/25" : "bg-risk/10 text-foreground border-risk/25"}`}>
-                        {msg.type === "success" ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                    <div className={`p-3 rounded-xl text-sm flex items-start gap-2 border ${msg.type === "success" ? "bg-success/10 text-foreground border-success/25" : "bg-risk/10 text-foreground border-risk/25"}`}>
+                        {msg.type === "success" ? <CheckCircle className="mt-0.5 h-4 w-4 shrink-0" /> : <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />}
                         {msg.text}
                     </div>
                 )}
 
+                {mode === "csv" ? (
+                    <div className="space-y-3">
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-foreground/80">Schedule file (.csv)</label>
+                            <Input
+                                type="file"
+                                accept=".csv,text/csv"
+                                disabled={busy}
+                                onChange={e => {
+                                    const file = e.target.files?.[0];
+                                    // Clearing lets the same file be picked again after a failed import.
+                                    e.currentTarget.value = "";
+                                    if (file) handleCsv(file);
+                                }}
+                                className="bg-background/40 border-foreground/15 text-foreground focus:ring-accent/40"
+                            />
+                        </div>
+
+                        <div className="rounded-xl border border-foreground/10 bg-background/40 p-3">
+                            <p className="text-xs font-semibold text-foreground/80">Columns</p>
+                            <p className="mt-1 break-words font-mono text-[11px] text-foreground/70">
+                                {SCHEDULE_CSV_HEADERS.join(",")}
+                            </p>
+                            <p className="mt-2 text-[11px] leading-relaxed text-foreground/60">
+                                Room and professor are optional. Type is lecture or lab, day is MO–SU (or Monday, Tue…),
+                                and times are 24-hour HH:MM. Every class repeats weekly.
+                            </p>
+                        </div>
+
+                        <Button type="button" variant="secondary" className="w-full gap-2" onClick={downloadTemplate}>
+                            <Download className="h-4 w-4" />
+                            Download template
+                        </Button>
+
+                        {busy && (
+                            <p className="flex items-center justify-center gap-2 text-xs text-foreground/70">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Importing…
+                            </p>
+                        )}
+                    </div>
+                ) : (
                 <form onSubmit={handleSubmit} className="space-y-3">
                     <div className="space-y-1">
                         <label className="text-xs font-semibold text-foreground/80">Course Title</label>
@@ -177,7 +268,7 @@ export function ScheduleManager({ onUpdate }: { onUpdate: () => void }) {
                         <Input
                             value={room}
                             onChange={e => setRoom(e.target.value)}
-                            placeholder="e.g. RC1-242"
+                            placeholder="e.g. 204, RC1 or LABK"
                             className="bg-background/40 border-foreground/15 text-foreground placeholder:text-foreground/50 focus:ring-accent/40"
                         />
                     </div>
@@ -186,6 +277,7 @@ export function ScheduleManager({ onUpdate }: { onUpdate: () => void }) {
                         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Class"}
                     </Button>
                 </form>
+                )}
             </DialogContent>
         </Dialog>
     );
