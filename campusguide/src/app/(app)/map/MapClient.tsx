@@ -30,7 +30,7 @@ export function MapClient() {
   const [importing, setImporting] = React.useState(false);
   const [importMsg, setImportMsg] = React.useState<string | null>(null);
   const [mapImgError, setMapImgError] = React.useState(false);
-  const [mapSrc, setMapSrc] = React.useState("/campus-map-v2.png");
+  const [mapSrc, setMapSrc] = React.useState("/campus-map-v3.png");
 
   const transformRef = React.useRef<ReactZoomPanPinchRef | null>(null);
 
@@ -341,8 +341,8 @@ export function MapClient() {
                             fill
                             priority
                             onError={() => {
-                              // Try fallback if v2 is missing, otherwise show placeholder.
-                              if (mapSrc === "/campus-map-v2.png") {
+                              // Try fallback if v3 is missing, otherwise show placeholder.
+                              if (mapSrc === "/campus-map-v3.png") {
                                 setMapSrc("/campus-map.png");
                                 return;
                               }
@@ -357,7 +357,7 @@ export function MapClient() {
                             <div>
                               <p className="text-sm font-extrabold">Map image not found</p>
                               <p className="mt-1 text-xs text-foreground/70">
-                                Add your campus map image at <span className="font-semibold">public/campus-map-v2.png</span> (or <span className="font-semibold">public/campus-map.png</span>).
+                                Add your campus map image at <span className="font-semibold">public/campus-map-v3.png</span> (or <span className="font-semibold">public/campus-map.png</span>).
                               </p>
                             </div>
                           </div>

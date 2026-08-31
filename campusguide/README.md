@@ -76,21 +76,10 @@ page shows a banner — but uploads are refused with a 503.
 
 ### Analytics
 
-Both trackers load from the root layout (`src/components/Analytics.tsx`):
-
-- **Vercel Web Analytics** (`@vercel/analytics`) — enable it once in the Vercel
-  project under Analytics → Enable. After the next deploy, page views show in
-  that dashboard. No env var is required.
-- **Google Analytics 4** — the measurement ID is baked in. Set this only to
-  send a fork or a staging deploy to a different property:
-
-```bash
-NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
-```
-
-GA4 is skipped under `npm run dev` so local refreshes don't reach the real
-property. To verify GA4, deploy (or `npm run build && npm start`) and watch
-GA4 realtime.
+**Vercel Web Analytics** (`@vercel/analytics`) loads from the root layout
+(`src/components/Analytics.tsx`). Enable it once in the Vercel project under
+Analytics → Enable. After the next deploy, page views show in that dashboard.
+No env var is required.
 
 In the Cloudflare dashboard:
 

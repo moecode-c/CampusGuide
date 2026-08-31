@@ -11,7 +11,8 @@ import { Analytics } from "@/components/Analytics";
 const geistSans = Oxanium({
   variable: "--font-geist-sans",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
+  // Used UI weights only: normal/medium/semibold/bold/extrabold. No light (300).
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 const geistDisplay = Press_Start_2P({
@@ -23,7 +24,8 @@ const geistDisplay = Press_Start_2P({
 const geistMono = JetBrains_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  // Code snippets are 400; a couple of admin IP rows use font-bold (700).
+  weight: ["400", "700"],
 });
 
 export const metadata: Metadata = {

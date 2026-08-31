@@ -36,7 +36,7 @@ const nextConfig: NextConfig = {
     return [
       {
         // Cache-bustable assets (rename when you change the file)
-        source: "/campus-map-v2.png",
+        source: "/campus-map-v3.png",
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
       {

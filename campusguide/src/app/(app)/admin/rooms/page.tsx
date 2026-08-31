@@ -24,7 +24,7 @@ export default function AdminRoomsPage() {
 
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [mapImgError, setMapImgError] = React.useState(false);
-  const [mapSrc, setMapSrc] = React.useState("/campus-map-v2.png");
+  const [mapSrc, setMapSrc] = React.useState("/campus-map-v3.png");
   const mapRef = React.useRef<HTMLDivElement | null>(null);
 
   const [listQuery, setListQuery] = React.useState("");
@@ -282,7 +282,7 @@ export default function AdminRoomsPage() {
                       alt="Campus map"
                       fill
                       onError={() => {
-                        if (mapSrc === "/campus-map-v2.png") {
+                        if (mapSrc === "/campus-map-v3.png") {
                           setMapSrc("/campus-map.png");
                           return;
                         }
@@ -295,7 +295,7 @@ export default function AdminRoomsPage() {
                     />
                   ) : (
                     <div className="grid h-full w-full place-items-center p-6 text-center">
-                      <p className="text-xs text-foreground/70">Add public/campus-map-v2.png (or public/campus-map.png)</p>
+                      <p className="text-xs text-foreground/70">Add public/campus-map-v3.png (or public/campus-map.png)</p>
                     </div>
                   )}
 
